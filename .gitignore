@@ -1,0 +1,50 @@
+# ==================== 运行产出 ====================
+# 出图结果与中间产物，体积大且含第三方封面内容，不入库
+outputs/
+_tmp/
+frames/
+
+# ==================== 日志 ====================
+*.log
+
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ==================== 编辑器 / 操作系统 ====================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==================== 本地私有数据 ====================
+.workbuddy/
+
+# ==================== 开发过程备份 ====================
+*.bak
+*.bak-*
+*.old
+*.orig
+*.rej
+
+# ==================== 一次性诊断脚本（仅作者本机排查用） ====================
+audit.py
+audit_report.py
+audit_viz.py
+inner_edge.py
+
+# ==================== 参考素材（不入库） ====================
+# keychain_overlay.png 与 tone_curve.json 是钥匙扣功能必需，**保留在仓库中**。
+# 下面这些是标定与复现用的参考素材：实拍商品原片、真实音乐 App 界面截图，
+# 含第三方版权内容，不随代码开源。
+# 需要重做标定的开发者，请自备同类素材后运行 tools/keychain_solve_alpha.py。
+assets/keychain/keychain_raw.jpg
+assets/keychain/sample_final.jpg
+assets/keychain/source_cover.jpg
+assets/keychain/player_1152x1920.jpg
+assets/keychain/keychain_alpha.png
