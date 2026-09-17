@@ -2,7 +2,7 @@
 
 把一张专辑封面，变成可以直接印刷或上架的商品图。
 
-给一张封面图，它能产出三种成品：**播放界面卡片**（30×50mm 实物尺寸）、**钥匙扣商品图**（1920×1920）、**黑胶唱片图**。
+给一张封面图，它能产出四种成品：**播放界面卡片**（30×50mm 实物尺寸）、**钥匙扣商品图**（1920×1920 场景图）、**白底商品图**（纯白/透明底电商图，可拼版）、**黑胶播放界面**（1:2 竖图）。
 
 ![钥匙扣成品示例](assets/demo/keychain.jpg)
 
@@ -21,7 +21,7 @@
 | 播放界面 | 复刻音乐 App 深色播放页，**1181×1968 @1000DPI = 30×50mm** 实物比例 | `tools/make_player.py` |
 | 钥匙扣商品图 | **1920×1920** 五层合成：模糊底图 → 白卡纸 → 清晰封面 → 播放界面 → 钥匙扣贴片 | `tools/make_keychain.py` |
 | 白底商品图 | 纯白底 / 透明底，钥匙扣放大当主角；画布预设可配置（淘宝 / 天猫 / 拼多多 / 抖店 / 亚马逊 / Etsy…），可拼版总览 | `tools/make_keychain_shop.py` |
-| 黑胶唱片图 | 黑胶风格方形卡片 | `tools/make_vinyl.py` |
+| 黑胶播放界面 | **1:2 竖图**（默认 1200×2400）：深色底 + 圆黑胶唱片 + 唱臂 + 控制区，中心圆形封面；宽度可选 900/1200/1500 | `tools/make_vinyl.py` |
 | 批量套装 | 按歌手抓取热门歌曲，一次产出一整套 + 总览图 | `tools/make_set.py` |
 | 网页工作台 | 本地可视化界面，勾选即出图，支持打包 ZIP 下载 | `workbench/server.py` |
 
@@ -66,10 +66,10 @@ python -m venv .venv
 ./start.sh
 ```
 
-浏览器会自动打开 `http://127.0.0.1:8765`。输入歌手名 → 选歌 → 勾选「同时出钥匙扣商品图」/「同时出白底商品图」→ 开始生成。
+浏览器会自动打开 `http://127.0.0.1:8765`。输入歌手名 → 选歌 → 勾选「同时出钥匙扣商品图」/「同时出白底商品图」/「同时出黑胶播放界面」→ 开始生成。
 产物会落到 `outputs/工作台/<任务id>/`。
 
-两个商品图开关的区别：
+三个产出开关的区别：
 
 - **钥匙扣商品图**（`keychain/`）—— *场景图*。1920×1920，封面模糊铺满当背景 + 白卡纸相框，钥匙扣缩在中间当点缀，像一张「效果图」。
 - **白底商品图**（`shop/`）—— *商品图*。没有背景大图，纯白底或透明底，钥匙扣放大当主角，并附拼版总览。
@@ -80,6 +80,9 @@ python -m venv .venv
   改完重启工作台即生效，不用动代码。
   > 注意：这里改的是外面那层商品图画布。卡面（`players/*.png`）必须保持 1:1.667，
   > 那是卡套内腔的比例，动了就嵌不进去。
+- **黑胶播放界面**（`vinyl/`）—— 1:2 **竖图**（高 = 2×宽，默认 1200×2400）：
+  深色底 + 圆黑胶唱片 + 唱臂 + 控制区，中心是圆形封面。可选宽度 **900 / 1200 / 1500**，
+  并附一张 `总览-黑胶.jpg` 拼版。
 
 ### 方式二：命令行
 
@@ -97,7 +100,11 @@ python make_keychain.py --cover 封面.jpg --player player.png --out keychain.pn
 # 3) 单张白底商品图
 python make_keychain_shop.py --cover 封面.jpg --player player.png --out shop.png
 
-# 4) 按歌手批量出一整套
+# 4) 单张黑胶播放界面（1:2 竖图）
+python make_vinyl.py --cover 封面.jpg --title 歌名 --artist 歌手 \
+                     --duration 257 --played 0.10 --width 1200 --out vinyl.png
+
+# 5) 按歌手批量出一整套
 python make_set.py 周杰伦 --top 5 --out ../outputs/周杰伦-热门前5
 python make_keychain.py --batch ../outputs/周杰伦-热门前5          # 场景图
 python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5     # 商品图
@@ -126,7 +133,7 @@ python make_keychain_shop.py --list-canvas
 │   ├── fetch163.py            网易云：搜索、封面、歌曲信息
 │   ├── fetch_qq.py            QQ 音乐：搜索、封面、热门歌曲
 │   ├── make_player.py         播放界面卡片
-│   ├── make_vinyl.py          黑胶唱片图
+│   ├── make_vinyl.py          黑胶播放界面（1:2 竖图）
 │   ├── make_keychain.py       钥匙扣商品图（五层合成，场景图）
 │   ├── make_keychain_shop.py  白底商品图（纯白/透明底，竖长/方形 + 拼版）
 │   ├── keychain_build.py      贴片标定：从实拍素材反解 RGBA 叠加层
@@ -134,6 +141,10 @@ python make_keychain_shop.py --list-canvas
 │   ├── make_demo_assets.py    生成仓库自带的抽象示例素材
 │   ├── fonts.py               跨平台中文字体探测
 │   ├── noproxy.py             绕过本机代理访问 127.0.0.1
+│   ├── e2e_test.py            端到端验收：完整调用序列
+│   ├── e2e_keychain.py        端到端验收：钥匙扣（17 项断言）
+│   ├── e2e_shop.py            端到端验收：白底商品图
+│   ├── e2e_vinyl.py           端到端验收：黑胶播放界面（19 项断言）
 │   └── start_bg.py            脱离会话后台启动工作台
 ├── workbench/                 网页工作台
 │   ├── server.py              HTTP 后端（仅标准库，只绑 127.0.0.1）
