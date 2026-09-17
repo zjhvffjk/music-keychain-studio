@@ -20,7 +20,7 @@
 |---|---|---|
 | 播放界面 | 复刻音乐 App 深色播放页，**1181×1968 @1000DPI = 30×50mm** 实物比例 | `tools/make_player.py` |
 | 钥匙扣商品图 | **1920×1920** 五层合成：模糊底图 → 白卡纸 → 清晰封面 → 播放界面 → 钥匙扣贴片 | `tools/make_keychain.py` |
-| 白底商品图 | 纯白底 / 透明底，钥匙扣放大当主角，竖长 + 方形两种画布，可拼版总览 | `tools/make_keychain_shop.py` |
+| 白底商品图 | 纯白底 / 透明底，钥匙扣放大当主角；画布预设可配置（淘宝 / 天猫 / 拼多多 / 抖店 / 亚马逊 / Etsy…），可拼版总览 | `tools/make_keychain_shop.py` |
 | 黑胶唱片图 | 黑胶风格方形卡片 | `tools/make_vinyl.py` |
 | 批量套装 | 按歌手抓取热门歌曲，一次产出一整套 + 总览图 | `tools/make_set.py` |
 | 网页工作台 | 本地可视化界面，勾选即出图，支持打包 ZIP 下载 | `workbench/server.py` |
@@ -72,8 +72,14 @@ python -m venv .venv
 两个商品图开关的区别：
 
 - **钥匙扣商品图**（`keychain/`）—— *场景图*。1920×1920，封面模糊铺满当背景 + 白卡纸相框，钥匙扣缩在中间当点缀，像一张「效果图」。
-- **白底商品图**（`shop/`）—— *商品图*。没有背景大图，纯白底或透明底，钥匙扣放大当主角，竖长 / 方形两种画布，并附拼版总览。
+- **白底商品图**（`shop/`）—— *商品图*。没有背景大图，纯白底或透明底，钥匙扣放大当主角，并附拼版总览。
   可选「透明底 PNG」，直接贴到任意底色或电商详情页上。
+  画布可以**多选**（竖长 / 方形 / 淘宝 800×800 / 天猫 800×1200 / 拼多多 750×1000 /
+  抖店 1080×1080 / 亚马逊 1000×1000 / Etsy 2000×2000 …）。
+  预设清单在 [`config/canvas_presets.json`](config/canvas_presets.json)，**可自由增删改**，
+  改完重启工作台即生效，不用动代码。
+  > 注意：这里改的是外面那层商品图画布。卡面（`players/*.png`）必须保持 1:1.667，
+  > 那是卡套内腔的比例，动了就嵌不进去。
 
 ### 方式二：命令行
 
@@ -99,6 +105,13 @@ python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5     # 商�
 # 只出竖长白底、不要拼版
 python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5 \
         --canvas long --bg white --no-grid
+
+# 一次出多种画布（逗号分隔），比如竖长 + 淘宝主图
+python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5 \
+        --canvas long,taobao
+
+# 看看有哪些画布预设可选
+python make_keychain_shop.py --list-canvas
 ```
 
 不带任何素材参数直接运行 `make_keychain.py`，会用仓库自带的抽象占位图出一张演示图。
@@ -125,6 +138,8 @@ python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5 \
 ├── workbench/                 网页工作台
 │   ├── server.py              HTTP 后端（仅标准库，只绑 127.0.0.1）
 │   └── index.html             单页前端
+├── config/
+│   └── canvas_presets.json    商品图画布预设（可自由增删改）
 ├── assets/
 │   ├── keychain/
 │   │   ├── keychain_overlay.png   钥匙扣 RGBA 叠加层（功能必需）
@@ -157,6 +172,29 @@ export MINUET_FONT_BOLD=/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
 export MINUET_PORT=9000
 ./start.sh
 ```
+
+### 商品图画布预设
+
+商品图（白底商品图）的画布预设住在 [`config/canvas_presets.json`](config/canvas_presets.json)，
+界面上的画布按钮就是照它渲染的：
+
+```json
+"taobao": { "label": "淘宝主图 800×800", "tag": "淘宝", "w": 800, "h": 800, "pad": 0.070 }
+```
+
+| 字段 | 含义 |
+|---|---|
+| `label` | 界面上显示的名字（按钮上悬停可见） |
+| `tag` | 写进文件名的中文简称，保持短 |
+| `w` | 画布宽；填 `null` 表示按钥匙扣比例反算宽度（竖长画布用） |
+| `h` | 画布高 |
+| `pad` | 上下各留白占画布高的比例，钥匙扣高 = `1 - 2*pad` |
+
+按 key 覆盖内置项，或直接加新项（例如 `"shopee": {...}`）。`_` 开头的键是注释，会被忽略。
+改完**重启工作台**即生效；命令行可以用 `--list-canvas` 查当前预设。
+
+> ⚠️ 这里改的只是外面那层商品图画布。卡面尺寸不受影响 —— 它必须是 1:1.667
+> （卡套内腔的比例），改了会嵌不进去。
 
 ---
 

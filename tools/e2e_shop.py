@@ -7,15 +7,18 @@
 覆盖：
     1. /api/ping 上报 shop 能力
     2. 带 shop 开关提交任务 → 轮询到完成
-    3. 每首应产出 4 个变体（竖长/方形 × 白底/透明），尺寸与比例正确
+    3. 每首应产出「选中画布数 × 2」个变体，尺寸与预设声明完全一致
     4. 拼版总览按选中的画布种类各出一张，且**不足整行时不保留空列**
     5. 白底 JPG 四角为纯白、透明 PNG 真的透明
     6. ZIP 里含 shop/ 目录与商品图总览
 
+断言用的画布尺寸取自 config/canvas_presets.json —— 改了预设不用回来改测试。
+
 用法::
 
-    python tools/e2e_shop.py            # 默认用 5 首
-    python tools/e2e_shop.py 3          # 指定首数（顺便验证不足整行的拼版）
+    python tools/e2e_shop.py             # 默认 5 首，画布 long+square
+    python tools/e2e_shop.py 3           # 指定首数（顺便验证不足整行的拼版）
+    E2E_CANVAS=long,taobao python tools/e2e_shop.py 3    # 指定画布预设
     MINUET_PORT=9000 python tools/e2e_shop.py
 """
 import io
@@ -38,10 +41,47 @@ ARTIST = os.environ.get("E2E_ARTIST", "五月天")
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
+# 画布预设住在 config/canvas_presets.json —— 验收脚本按它**动态**断言，
+# 这样加了新预设、或调了尺寸，不用回来改测试。
+with io.open(os.path.join(ROOT, "config", "canvas_presets.json"), encoding="utf-8") as _f:
+    _raw = json.load(_f)
+PRESETS = {k: v for k, v in _raw.items() if not k.startswith("_") and isinstance(v, dict)}
+
+# 本次验收用哪几种画布（默认沿用基础两款）
+CANVASES = [x.strip() for x in
+            os.environ.get("E2E_CANVAS", "long,square").split(",") if x.strip()]
+
 # 竖长画布的比例 = 钥匙扣外轮廓比例 546:1456 = 0.375（左右留白与上下同比例，故与 pad 无关）;
 # 不是卡片内腔的 1:1.667 —— 那个是卡面自己的比例，别混。
-OUTLINE_RATIO = 546 / 1456
+OW, OH = 546, 1456
+OUTLINE_RATIO = OW / OH
 CARD_RATIO = 1181 / 1968
+
+
+def _pad_of(p):
+    """与 make_keychain_shop._norm_preset 同口径：非法值夹到 [0.01, 0.44]。"""
+    try:
+        pad = float(p.get("pad", 0.07))
+    except Exception:
+        pad = 0.07
+    if not (0.01 <= pad <= 0.44):
+        pad = min(max(pad, 0.01), 0.44)
+    return pad
+
+
+def expect_size(key):
+    """按 canvas_presets.json 反算某画布的成品尺寸（与 canvas_size() 同逻辑）。"""
+    p = PRESETS[key]
+    pad = _pad_of(p)
+    h = int(p["h"])
+    th = round(h * (1 - 2 * pad))
+    need = round(OW * th / OH)
+    w = p.get("w")
+    return (int(w) if w else round(need / (1 - 2 * pad))), h
+
+
+def preset_tag(key):
+    return PRESETS.get(key, {}).get("tag") or key
 
 lines = []
 fails = []
@@ -80,11 +120,12 @@ def main():
         return finish()
 
     # ---------- 2) 提交任务 ----------
-    lines.append("=== 2. 提交任务（%s 前 %d 首，含两个商品图开关）===" % (ARTIST, top))
+    lines.append("=== 2. 提交任务（%s 前 %d 首，画布=%s）==="
+                 % (ARTIST, top, ",".join(CANVASES)))
     req = {
         "mode": "artist", "artist": ARTIST, "top": top, "source": "auto",
         "keychain": True,
-        "shop": True, "shopCanvas": "both", "shopBg": "both", "shopGrid": True,
+        "shop": True, "shopCanvas": CANVASES, "shopBg": "both", "shopGrid": True,
     }
     st = call("/api/run", req)
     jid = st["id"]
@@ -112,35 +153,41 @@ def main():
     items = s.get("items", [])
     check(len(items) == top, "应产出 %d 首（实际 %d）" % (top, len(items)))
 
-    # ---------- 3) 每首 4 个变体 ----------
+    # ---------- 3) 每首的商品图变体 ----------
     lines.append("=== 3. 每首的商品图变体 ===")
-    want = {"long_white", "long_transparent", "square_white", "square_transparent"}
+    want = {f"{k}_{bg}" for k in CANVASES for bg in ("white", "transparent")}
     for it in items:
         su = it.get("shopUrls") or {}
         check(set(su.keys()) == want,
-              "%s 应有 4 个变体（实际 %d：%s）"
-              % (it["name"], len(su), ",".join(sorted(su.keys()))))
+              "%s 应有 %d 个变体（实际 %d：%s）"
+              % (it["name"], len(want), len(su), ",".join(sorted(su.keys()))))
         check(bool(it.get("keychainUrl")), "%s 的钥匙扣图应同时产出" % it["name"])
 
     d = os.path.join(ROOT, "outputs", "工作台", jid)
     sd = os.path.join(d, "shop")
 
-    # ---------- 4) 尺寸与比例 ----------
-    lines.append("=== 4. 落盘尺寸 / 比例 ===")
+    # ---------- 4) 尺寸（直接比对预设声明的成品尺寸）----------
+    lines.append("=== 4. 落盘尺寸 ===")
     sizes = {}
     for f in sorted(os.listdir(sd)):
         p = os.path.join(sd, f)
+        # tag 按长度降序匹配：否则「淘宝」会把「淘宝主图」的文件认走，断言误报
+        kind = None
+        for k in sorted(CANVASES, key=lambda x: -len(preset_tag(x))):
+            if ("-商品图-%s" % preset_tag(k)) in f:
+                kind = k
+                break
+        if kind is None:
+            check(False, "文件名认不出是哪个画布预设：%s" % f)
+            continue
         with Image.open(p) as im:
             sizes[f] = im.size
-            tag = ("竖长" if "竖长" in f else "方形") + \
-                  ("透明" if "透明" in f else "白底")
-            r = im.size[0] / im.size[1]
-            exp = OUTLINE_RATIO if tag.startswith("竖长") else 1.0
-            check(abs(r - exp) < 0.002,
-                  "%-34s %-11s 画布比 %.3f（应 %.3f）"
-                  % (f[:32], "%dx%d" % im.size, r, exp))
-    check(len(sizes) == top * 4, "shop/ 应有 %d 个文件（实际 %d）"
-          % (top * 4, len(sizes)))
+            ew, eh = expect_size(kind)
+            check(im.size == (ew, eh),
+                  "%-30s %dx%d（应 %dx%d）"
+                  % (f[:28], im.width, im.height, ew, eh))
+    want_n = top * len(CANVASES) * 2
+    check(len(sizes) == want_n, "shop/ 应有 %d 个文件（实际 %d）" % (want_n, len(sizes)))
     lines.append("  （卡面本身是 1:%.3f，与内腔一致，故缩放不变形）" % (1 / CARD_RATIO))
 
     # ---------- 5) 白底真白 / 透明真透明 ----------
@@ -162,7 +209,8 @@ def main():
     # ---------- 6) 拼版总览 ----------
     lines.append("=== 6. 拼版总览 ===")
     grids = s.get("shopGrids") or []
-    check(len(grids) == 2, "应出 2 张拼版（竖长 + 方形），实际 %d" % len(grids))
+    check(len(grids) == len(CANVASES),
+          "应出 %d 张拼版（每种画布一张），实际 %d" % (len(CANVASES), len(grids)))
     for g in grids:
         name = os.path.basename(g["url"].split("/")[-1])
         rel = urllib.parse.unquote(g["url"].split("/", 3)[-1])
@@ -190,9 +238,10 @@ def main():
         names = z.namelist()
     shop_in = [n for n in names if n.startswith("shop/")]
     grid_in = [n for n in names if n.startswith("总览-商品图")]
-    check(len(shop_in) == top * 4, "ZIP 应含 %d 个 shop/ 文件（实际 %d）"
-          % (top * 4, len(shop_in)))
-    check(len(grid_in) == 2, "ZIP 应含 2 张商品图总览（实际 %d）" % len(grid_in))
+    check(len(shop_in) == want_n, "ZIP 应含 %d 个 shop/ 文件（实际 %d）"
+          % (want_n, len(shop_in)))
+    check(len(grid_in) == len(CANVASES),
+          "ZIP 应含 %d 张商品图总览（实际 %d）" % (len(CANVASES), len(grid_in)))
     lines.append("  zip %.1fMB / %d 项" % (len(blob) / 1048576, len(names)))
     return finish(jid)
 

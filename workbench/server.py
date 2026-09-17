@@ -120,7 +120,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.5.0"   # 1.5.0: 白底商品图（product shot）接入工作台
+VERSION = "1.6.0"   # 1.6.0: 商品图画布预设可配置（config/canvas_presets.json，支持多选）
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -164,7 +164,7 @@ DEFAULTS = {
     "coverSize": 1492,         # 正方形封面母版边长（= 画布里"清晰封面"的边长，1:1 用上）
     "keychain": False,         # 是否同时出「钥匙扣商品图」（5 层合成）
     "shop": False,             # 是否同时出「白底商品图」（product shot）
-    "shopCanvas": "both",      # 商品图画布: long 竖长 / square 方形 / both
+    "shopCanvas": ["long", "square"],   # 商品图画布：config/canvas_presets.json 里的 key，可多选
     "shopBg": "both",          # 商品图底色: white 白底 / transparent 透明 / both
     "shopGrid": True,          # 商品图是否另出拼版总览
 }
@@ -323,8 +323,28 @@ def render_keychain(job, base, cpath, ppath):
 # 和 _KC_CACHE 一样按指纹失效 —— 重标定贴片后不必重启服务。
 _SHOP_CACHE = {"ov": None, "err": None, "stamp": None}
 
-SHOP_CANVAS_TAG = {"long": "竖长", "square": "方形"}
 SHOP_BG_TAG = {"white": "", "transparent": "-透明"}
+
+
+def shop_tag(kind):
+    """画布 key → 文件名里的中文简称。
+
+    预设现在是可配置的（tools/make_keychain_shop.py 读 config/canvas_presets.json），
+    所以这里**不能写死映射表**，否则用户加完预设这里会 KeyError。
+    """
+    spec = getattr(SHOP, "CANVAS_SPEC", None) or {}
+    return ((spec.get(kind) or {}).get("tag")) or kind
+
+
+def shop_presets():
+    """给前端的预设清单：[{key, label, tag}]，前端按它渲染画布按钮。
+
+    tag 是短标签（按钮上用），label 是完整名字（tooltip 用）——
+    预设可能很多，按钮上放完整名字会把侧栏撑爆。
+    """
+    spec = getattr(SHOP, "CANVAS_SPEC", None) or {}
+    return [{"key": k, "label": v.get("label") or k, "tag": v.get("tag") or k}
+            for k, v in spec.items()]
 
 
 def shop_assets():
@@ -354,15 +374,15 @@ def shop_ready():
 
 
 def shop_plan(opt):
-    """把两个下拉选项收敛成实际的 (画布列表, 底色列表)。
+    """把画布 / 底色选项收敛成实际的 (画布列表, 底色列表)。
 
     前端理论上只会传合法值，但接口是裸的（手工 POST 也能打进来），
-    所以这里做白名单收敛，避免 SHOP.CANVAS_SPEC 抛 KeyError 把整首搞挂。
+    所以统一走 SHOP.parse_canvases 收敛。⚠️ **不能再用 long/square 写死白名单** ——
+    预设是可配置的（config/canvas_presets.json），写死会把用户新增的画布当非法值丢掉。
     """
-    cv = opt.get("shopCanvas") if opt.get("shopCanvas") in ("long", "square", "both") else "both"
+    canvases = SHOP.parse_canvases(opt.get("shopCanvas"))
     bg = opt.get("shopBg") if opt.get("shopBg") in ("white", "transparent", "both") else "both"
-    canvases = ("long", "square") if cv == "both" else (cv,)
-    bgs = ("white", "transparent") if bg == "both" else (bg,)
+    bgs = ["white", "transparent"] if bg == "both" else [bg]
     return canvases, bgs
 
 
@@ -384,9 +404,10 @@ def render_shop(job, base, ppath, opt):
 
     made, err = {}, None
     for kind in canvases:
+        tag = shop_tag(kind)
         for bg in bgs:
             ext = ".png" if bg == "transparent" else ".jpg"
-            name = "%s-商品图-%s%s%s" % (base, SHOP_CANVAS_TAG[kind], SHOP_BG_TAG[bg], ext)
+            name = "%s-商品图-%s%s%s" % (base, tag, SHOP_BG_TAG[bg], ext)
             p = os.path.join(out_dir, name)
             try:
                 im = SHOP.build_unit(ppath, ov, kind=kind, bg=bg)
@@ -394,7 +415,7 @@ def render_shop(job, base, ppath, opt):
                 im.close()
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
-                log(job, f"  └ 商品图 {SHOP_CANVAS_TAG[kind]}{SHOP_BG_TAG[bg]} 失败：{err}", "warn")
+                log(job, f"  └ 商品图 {tag}{SHOP_BG_TAG[bg]} 失败：{err}", "warn")
                 continue
             made[f"{kind}_{bg}"] = os.path.relpath(p, job["dir"])
     return made, (None if made else err)
@@ -498,13 +519,21 @@ def render_song(job, s, rank, opt):
 
 
 def _shop_label(shop_rel):
-    """把变体键列表说成人话：竖长·白底 / 竖长·透明 / 方形·白底 …"""
-    order = ("long_white", "long_transparent", "square_white", "square_transparent")
+    """把变体键列表说成人话：竖长·白底 / 淘宝·透明 …
+
+    顺序跟着预设声明顺序走（用户能在 config/canvas_presets.json 里调整），
+    不再写死 long/square —— 预设是可配置的。
+    """
+    spec = getattr(SHOP, "CANVAS_SPEC", None) or {}
+    keys = [f"{kind}_{bg}" for kind in spec for bg in ("white", "transparent")
+            if f"{kind}_{bg}" in shop_rel]
+    for k in shop_rel:                      # 预设里没有的键（理论上不会出现）兜底
+        if k not in keys:
+            keys.append(k)
     tags = []
-    for k in order:
-        if k in shop_rel:
-            kind, _, bg = k.partition("_")
-            tags.append(f"{SHOP_CANVAS_TAG[kind]}·{'白底' if bg == 'white' else '透明'}")
+    for k in keys:
+        kind = k.rpartition("_")[0]         # 用 rpartition：预设 key 里可能带下划线
+        tags.append("%s·%s" % (shop_tag(kind), "白底" if k.endswith("white") else "透明"))
     return " / ".join(tags)
 
 
@@ -537,12 +566,21 @@ def finish(job, made, ar_name, total_label, src=None):
         job["keychainOverview"] = url_of(job, os.path.relpath(kgrid, job["dir"]))
         log(job, f"钥匙扣总览已生成（{len(kc_made)} 张）", "ok")
 
-    # 白底商品图拼版总览：竖长 / 方形各一张（用户选了哪种画布就出哪种）
+    # 商品图拼版总览：用户选了哪几种画布就出几张（不再写死竖长/方形）
     shop_made = [it for it in made if it.get("shopPaths")]
     if shop_made and job.get("shopGrid", True) and SHOP is not None:
         job["phase"] = "生成商品图总览"
         grids = []
-        for kind, label in (("long", "竖长"), ("square", "方形")):
+        # 要拼哪些画布，从实际产出里反推；顺序跟预设声明顺序走
+        seen = []
+        for it in shop_made:
+            for key in it["shopPaths"]:
+                k = key.rpartition("_")[0]
+                if k not in seen:
+                    seen.append(k)
+        order = list(getattr(SHOP, "CANVAS_SPEC", None) or {})
+        for kind in [k for k in order if k in seen] + [k for k in seen if k not in order]:
+            label = shop_tag(kind)
             # 白底优先；用户只选了透明底就退而用透明底拼
             prefer = "white" if any(it["shopPaths"].get(f"{kind}_white") for it in shop_made) \
                 else "transparent"
@@ -563,12 +601,12 @@ def finish(job, made, ar_name, total_label, src=None):
                         #    CLI 那边单元是内存里现成的 RGBA，所以露不出这个问题。
                         ims.append(f.convert("RGBA"))
                 g = SHOP.build_grid(ims, bg=prefer)
-                gname = "总览-商品图-%s-%s.%s" % (label,
-                                                "白底" if prefer == "white" else "透明",
+                bg_tag = "白底" if prefer == "white" else "透明"
+                gname = "总览-商品图-%s-%s.%s" % (label, bg_tag,
                                                 "jpg" if prefer == "white" else "png")
                 gpath = os.path.join(job["dir"], gname)
                 SHOP.save_img(g, gpath, bg=prefer)
-                grids.append({"label": f"白底商品图总览 · {label}",
+                grids.append({"label": f"商品图总览 · {label} · {bg_tag}",
                               "url": url_of(job, gname)})
                 log(job, f"商品图总览（{label}）已生成（{len(units)} 张，"
                          f"{g.width}×{g.height}）", "ok")
@@ -981,7 +1019,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True, "app": APP_ID, "version": VERSION,
                                    "pid": os.getpid(), "port": self.server.server_port,
                                    "keychain": kc_ok, "keychainWhy": kc_why,
-                                   "shop": sh_ok, "shopWhy": sh_why})
+                                   "shop": sh_ok, "shopWhy": sh_why,
+                                   "shopPresets": (shop_presets() if sh_ok else [])})
             if p in ("/", "/index.html"):
                 return self._file(os.path.join(HERE, "index.html"))
             if p == "/favicon.ico":
@@ -1163,8 +1202,10 @@ class Handler(BaseHTTPRequestHandler):
                 opt["keychain"] = bool(opt.get("keychain", False))
                 opt["shop"] = bool(opt.get("shop", False))
                 opt["shopGrid"] = bool(opt.get("shopGrid", True))
-                opt["shopCanvas"] = opt.get("shopCanvas") \
-                    if opt.get("shopCanvas") in ("long", "square", "both") else "both"
+                # 画布预设可配置（config/canvas_presets.json），交给 SHOP 收敛，
+                # 这里不再写死白名单 —— 否则用户新增的预设会被当非法值丢掉。
+                opt["shopCanvas"] = (SHOP.parse_canvases(opt["shopCanvas"])
+                                     if SHOP is not None else list(DEFAULTS["shopCanvas"]))
                 opt["shopBg"] = opt.get("shopBg") \
                     if opt.get("shopBg") in ("white", "transparent", "both") else "both"
                 opt["top"] = max(1, min(opt["top"] or 10, 50))

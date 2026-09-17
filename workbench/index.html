@@ -485,18 +485,15 @@ details.adv summary:hover{color:var(--fg2)}
         <div class="sw" data-page-node-id="Shop2W8Hq5NtZxM3vCdEf">
           <span data-page-node-id="Shop3Ry6Lp2VbNw9sAjXk">
             <b data-page-node-id="Shop4Mv8Tc3QnJw5hFbZp">同时出白底商品图</b>
-            <em data-page-node-id="Shop5Dk2Wz7XnQm4rGlyV">纯白底 · 钥匙扣当主角 · 每首最多 4 张</em>
+            <em data-page-node-id="Shop5Dk2Wz7XnQm4rGlyV">纯白底 · 钥匙扣当主角 · 每首 = 选中画布数 × 2（白底+透明）</em>
           </span>
           <input type="checkbox" id="p_shop" data-page-node-id="Shop6Ps9Kd4BvJm2yWnQr">
         </div>
         <div class="kcopts" id="shopOpts" data-page-node-id="Shop7Fz3Qt8NrXw6mCbLv">
           <div class="optrow" data-page-node-id="Shop8Gk4Pm1SvYh7nQdWz">
             <span class="olbl" data-page-node-id="Shop9Hl5Qn2TwZi8oReXa">画布</span>
-            <div class="chips" id="shopCanvasChips" data-page-node-id="ShopATm6Ro3UxAj9pSfYb">
-              <button data-v="long" data-page-node-id="ShopBU7Sp4VyBk0qTgZc">竖长</button>
-              <button data-v="square" data-page-node-id="ShopCV8Tq5WzCl1rUhAd">方形</button>
-              <button class="on" data-v="both" data-page-node-id="ShopDW9Ur6XaDm2sViBe">两种</button>
-            </div>
+            <!-- 按钮由 JS 按后端预设渲染：config/canvas_presets.json 可增删 -->
+            <div class="chips" id="shopCanvasChips" data-page-node-id="ShopATm6Ro3UxAj9pSfYb"></div>
           </div>
           <div class="optrow" data-page-node-id="ShopEX0Vs7YbEn3tWjCf">
             <span class="olbl" data-page-node-id="ShopFY1Wt8ZcFo4uXkDg">底色</span>
@@ -541,7 +538,7 @@ details.adv summary:hover{color:var(--fg2)}
           每首会出两张图：<b data-page-node-id="v8HAJCplo339Kbj62R7jE6">1000×1000 正方形封面母版</b> + <b data-page-node-id="fYIKeSYhGgrKQbFMICSYMi">30×50mm 播放界面</b><br data-page-node-id="rQGJUH93n8v9vRXZwwIFwI">
           素材直接取自网易云 CDN 母版，不是手机截图<br data-page-node-id="KcEmpty0Xq7Lm2NvB4tRwZs">
           勾选上面的「同时出钥匙扣商品图」，每首再多一张 <b data-page-node-id="KcEmpty1Dk9Wz3QmNr6sVbXp">1920×1920 钥匙扣实物效果图</b><br data-page-node-id="ShopEmpty0Xq7Lm2NvB4tRw">
-          勾选「同时出白底商品图」，每首再出 <b data-page-node-id="ShopEmpty1Dk9Wz3QmNr6sVb">纯白底 / 透明底的商品图</b>（竖长、方形），并附拼版总览
+          勾选「同时出白底商品图」，每首再出 <b data-page-node-id="ShopEmpty1Dk9Wz3QmNr6sVb">纯白底 / 透明底的商品图</b>（画布种类在下方选择，可多选），并附拼版总览
         </p>
       </div>
     </div>
@@ -667,8 +664,16 @@ let TIMER  = null;
 let UPLOAD = null;
 let PICK   = null;   // 单曲模式下选中的歌曲（索引）
 let SEL    = null;   // 选中的候选对象（含 source / albummid / id）
-let SHOP_CV = 'both';        // 商品图画布：long / square / both
-let SHOP_BG = 'both';        // 商品图底色：white / transparent / both
+/* 白底商品图的画布 / 底色。
+   画布预设住在 config/canvas_presets.json，由后端 ping 下发（见 initShopPresets），
+   前端**不写死** —— 用户增删预设后**要重启后端**才生效，前端不用改代码
+   （只刷新页面不够：CANVAS_SPEC 是后端 import 时读进去的）。 */
+let SHOP_PRESETS = [];       // [{key, label, tag}]
+let SHOP_KEYS    = [];       // 预设 key 顺序
+let SHOP_ORDER   = [];       // 变体键顺序：{key}_{bg}
+let SHOP_CV      = [];       // 选中的画布（多选）
+let SHOP_BG      = 'both';   // 底色：white / transparent / both
+const SHOP_TAG   = {};       // 变体键 -> 展示名
 
 /* ---------------- 小工具 ---------------- */
 let toastT;
@@ -769,26 +774,54 @@ $$('#srcChips button').forEach(b=>{
 $('#p_shop').onchange = e =>{
   document.getElementById('shopBox').classList.toggle('on', e.target.checked);
 };
-$$('#shopCanvasChips button').forEach(b=>{
-  b.onclick = ()=>{
-    $$('#shopCanvasChips button').forEach(x=>x.classList.toggle('on', x===b));
-    SHOP_CV = b.dataset.v;
-  };
-});
+/* 画布按钮：按后端预设渲染，多选（至少留一个）。 */
+function renderShopCanvasChips(){
+  const box = $('#shopCanvasChips');
+  if(!box) return;
+  box.innerHTML = SHOP_PRESETS.map(p=>
+    `<button data-v="${esc(p.key)}" title="${esc(p.label || p.key)}">${
+      esc(p.tag || p.key)}</button>`).join('');
+  box.querySelectorAll('button').forEach(b=>{
+    b.classList.toggle('on', SHOP_CV.includes(b.dataset.v));
+    b.onclick = ()=>{
+      const v = b.dataset.v, i = SHOP_CV.indexOf(v);
+      if(i >= 0){
+        if(SHOP_CV.length <= 1) return toast('至少要留一种画布');
+        SHOP_CV.splice(i, 1);
+      }else{
+        SHOP_CV.push(v);
+      }
+      b.classList.toggle('on', SHOP_CV.includes(v));
+    };
+  });
+}
+
+/* 后端探测完成后再初始化：预设清单来自 /api/ping，早于探测读会拿到空气。 */
+function initShopPresets(){
+  const ps = (BACKEND.info && BACKEND.info.shopPresets) || [];
+  SHOP_PRESETS = ps.length ? ps : [{key:'long', label:'竖长', tag:'竖长'},
+                                   {key:'square', label:'方形', tag:'方形'}];
+  SHOP_KEYS  = SHOP_PRESETS.map(p=>p.key);
+  SHOP_ORDER = SHOP_KEYS.flatMap(k=>[k + '_white', k + '_transparent']);
+  SHOP_ORDER.forEach(k=>{
+    const i = k.lastIndexOf('_'), kind = k.slice(0, i);
+    const p = SHOP_PRESETS.find(x=>x.key === kind);
+    SHOP_TAG[k] = ((p && p.label) || kind) + ' · ' +
+                  (k.slice(i+1) === 'white' ? '白底' : '透明');
+  });
+  // 默认选前两个（竖长 + 方形），跟旧行为一致
+  if(!SHOP_CV.length) SHOP_CV = SHOP_KEYS.slice(0, Math.min(2, SHOP_KEYS.length));
+  SHOP_CV = SHOP_CV.filter(k=> SHOP_KEYS.includes(k));
+  renderShopCanvasChips();
+}
 $$('#shopBgChips button').forEach(b=>{
   b.onclick = ()=>{
     $$('#shopBgChips button').forEach(x=>x.classList.toggle('on', x===b));
     SHOP_BG = b.dataset.v;
   };
 });
-/* 商品图四种变体的中文名与展示顺序（后端键名 -> 标签） */
-const SHOP_TAG = {
-  long_white:         '竖长 · 白底',
-  long_transparent:   '竖长 · 透明',
-  square_white:       '方形 · 白底',
-  square_transparent: '方形 · 透明'
-};
-const SHOP_ORDER = Object.keys(SHOP_TAG);
+/* 变体的展示名（SHOP_TAG）与顺序（SHOP_ORDER）改由 initShopPresets() 生成，
+   因为预设是可配置的 —— 写死四种会导致用户新增的画布没有名字。 */
 
 /* ---------------- 查询歌手 ---------------- */
 $('#btnQueryArtist').onclick = async ()=>{
@@ -1035,7 +1068,9 @@ function render(d){
    只靠棋盘格区分，没必要占格子），白底一张都没出才退回透明版。最多两格。 */
 function shopShown(it){
   const u = it.shopUrls || {};
-  const keys = ['long_white','square_white'].filter(k=>u[k]);
+  // 画布预设可配置，所以从 SHOP_ORDER 里取所有 *_white —— 不能写死
+  // ['long_white','square_white']，用户只勾淘宝/天猫时那样永远命中不到。
+  const keys = SHOP_ORDER.filter(k=> k.endsWith('_white') && u[k]).slice(0, 2);
   if(!keys.length) keys.push(...Object.keys(u).slice(0,2));
   return keys;
 }
@@ -1229,6 +1264,8 @@ $('.brand h1').ondblclick = ()=> showConn(true);
     document.getElementById('shopBox').className = 'kctog off';
     $('#shopHint').textContent = '当前不可用：' + (info.shopWhy || '素材未就绪');
   }
+  // 预设清单来自 ping，必须等探测完成后再初始化画布按钮
+  initShopPresets();
 })();
 </script>
 </body>
