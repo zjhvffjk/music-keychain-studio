@@ -8,6 +8,10 @@
 
 > 上图由本仓库代码生成（`tools/make_demo_assets.py`），使用程序绘制的抽象封面，不含任何第三方素材。
 
+**白底商品图**（电商商品图形态，纯白底 + 钥匙扣当主角，可拼版）：
+
+![白底商品图示例](assets/demo/shop-grid.jpg)
+
 ---
 
 ## 功能一览
@@ -16,6 +20,7 @@
 |---|---|---|
 | 播放界面 | 复刻音乐 App 深色播放页，**1181×1968 @1000DPI = 30×50mm** 实物比例 | `tools/make_player.py` |
 | 钥匙扣商品图 | **1920×1920** 五层合成：模糊底图 → 白卡纸 → 清晰封面 → 播放界面 → 钥匙扣贴片 | `tools/make_keychain.py` |
+| 白底商品图 | 纯白底 / 透明底，钥匙扣放大当主角，竖长 + 方形两种画布，可拼版总览 | `tools/make_keychain_shop.py` |
 | 黑胶唱片图 | 黑胶风格方形卡片 | `tools/make_vinyl.py` |
 | 批量套装 | 按歌手抓取热门歌曲，一次产出一整套 + 总览图 | `tools/make_set.py` |
 | 网页工作台 | 本地可视化界面，勾选即出图，支持打包 ZIP 下载 | `workbench/server.py` |
@@ -61,8 +66,14 @@ python -m venv .venv
 ./start.sh
 ```
 
-浏览器会自动打开 `http://127.0.0.1:8765`。输入歌手名 → 选歌 → 勾选「同时出钥匙扣商品图」→ 开始生成。
+浏览器会自动打开 `http://127.0.0.1:8765`。输入歌手名 → 选歌 → 勾选「同时出钥匙扣商品图」/「同时出白底商品图」→ 开始生成。
 产物会落到 `outputs/工作台/<任务id>/`。
+
+两个商品图开关的区别：
+
+- **钥匙扣商品图**（`keychain/`）—— *场景图*。1920×1920，封面模糊铺满当背景 + 白卡纸相框，钥匙扣缩在中间当点缀，像一张「效果图」。
+- **白底商品图**（`shop/`）—— *商品图*。没有背景大图，纯白底或透明底，钥匙扣放大当主角，竖长 / 方形两种画布，并附拼版总览。
+  可选「透明底 PNG」，直接贴到任意底色或电商详情页上。
 
 ### 方式二：命令行
 
@@ -74,12 +85,20 @@ python make_player.py --cover 封面.jpg --title 歌名 --artist 歌手 \
                       --duration 257 --played 0.35 --width 1181 --ratio 1.6667 \
                       --out player.png
 
-# 2) 单张钥匙扣商品图
+# 2) 单张钥匙扣商品图（场景图）
 python make_keychain.py --cover 封面.jpg --player player.png --out keychain.png
 
-# 3) 按歌手批量出一套
+# 3) 单张白底商品图
+python make_keychain_shop.py --cover 封面.jpg --player player.png --out shop.png
+
+# 4) 按歌手批量出一整套
 python make_set.py 周杰伦 --top 5 --out ../outputs/周杰伦-热门前5
-python make_keychain.py --batch ../outputs/周杰伦-热门前5
+python make_keychain.py --batch ../outputs/周杰伦-热门前5          # 场景图
+python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5     # 商品图
+
+# 只出竖长白底、不要拼版
+python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5 \
+        --canvas long --bg white --no-grid
 ```
 
 不带任何素材参数直接运行 `make_keychain.py`，会用仓库自带的抽象占位图出一张演示图。
@@ -95,7 +114,8 @@ python make_keychain.py --batch ../outputs/周杰伦-热门前5
 │   ├── fetch_qq.py            QQ 音乐：搜索、封面、热门歌曲
 │   ├── make_player.py         播放界面卡片
 │   ├── make_vinyl.py          黑胶唱片图
-│   ├── make_keychain.py       钥匙扣商品图（五层合成）
+│   ├── make_keychain.py       钥匙扣商品图（五层合成，场景图）
+│   ├── make_keychain_shop.py  白底商品图（纯白/透明底，竖长/方形 + 拼版）
 │   ├── keychain_build.py      贴片标定：从实拍素材反解 RGBA 叠加层
 │   ├── make_set.py            批量套装 + 总览图
 │   ├── make_demo_assets.py    生成仓库自带的抽象示例素材

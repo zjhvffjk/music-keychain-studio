@@ -99,6 +99,14 @@ try:
 except Exception as _e:                      # pragma: no cover
     KC, _KC_IMPORT_ERR = None, f"{type(_e).__name__}: {_e}"
 
+# 白底商品图（product shot）：纯白/透明底、钥匙扣当主角，支持竖长/方形与拼版。
+# 与上面 KC 同属可选能力，缺素材时只让这一项不可用。
+try:
+    import make_keychain_shop as SHOP
+    _SHOP_IMPORT_ERR = None
+except Exception as _e:                      # pragma: no cover
+    SHOP, _SHOP_IMPORT_ERR = None, f"{type(_e).__name__}: {_e}"
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -112,7 +120,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.4.0"   # 1.4.0: 封面母版 1000→1492（抓取侧 ?param= 1000→2000）
+VERSION = "1.5.0"   # 1.5.0: 白底商品图（product shot）接入工作台
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -155,6 +163,10 @@ DEFAULTS = {
     "dedupe": True,            # 同名歌曲只留热度最高的一版
     "coverSize": 1492,         # 正方形封面母版边长（= 画布里"清晰封面"的边长，1:1 用上）
     "keychain": False,         # 是否同时出「钥匙扣商品图」（5 层合成）
+    "shop": False,             # 是否同时出「白底商品图」（product shot）
+    "shopCanvas": "both",      # 商品图画布: long 竖长 / square 方形 / both
+    "shopBg": "both",          # 商品图底色: white 白底 / transparent 透明 / both
+    "shopGrid": True,          # 商品图是否另出拼版总览
 }
 
 JOBS = {}
@@ -185,7 +197,8 @@ def new_job(title, mode):
         "status": "running", "log": [],
         "done": 0, "total": 0, "phase": "准备中",
         "items": [], "skipped": [], "error": None,
-        "overview": None, "keychainOverview": None, "zip": None, "dir": d,
+        "overview": None, "keychainOverview": None, "shopGrids": [], "zip": None,
+        "dir": d,
         "elapsed": 0.0, "t0": time.time(),
     }
     with LOCK:
@@ -209,6 +222,7 @@ def snap(job):
             d = dict(it)
             d.pop("playerPath", None)      # 内部字段：本机绝对路径，不下发
             d.pop("keychainPath", None)
+            d.pop("shopPaths", None)
             items.append(d)
         return {
             "id": job["id"], "title": job["title"], "mode": job["mode"],
@@ -220,6 +234,7 @@ def snap(job):
             "error": job["error"],
             "overview": job["overview"],
             "keychainOverview": job.get("keychainOverview"),
+            "shopGrids": job.get("shopGrids") or [],
             "elapsed": round(job["elapsed"], 1),
         }
 
@@ -302,6 +317,90 @@ def render_keychain(job, base, cpath, ppath):
     return os.path.relpath(kpath, job["dir"]), None
 
 
+# ---------------------------------------------------------------- 白底商品图
+
+# 贴片裁到钥匙扣外轮廓后只有 546×1456（原图 1920²），一次裁好复用，
+# 和 _KC_CACHE 一样按指纹失效 —— 重标定贴片后不必重启服务。
+_SHOP_CACHE = {"ov": None, "err": None, "stamp": None}
+
+SHOP_CANVAS_TAG = {"long": "竖长", "square": "方形"}
+SHOP_BG_TAG = {"white": "", "transparent": "-透明"}
+
+
+def shop_assets():
+    """惰性载入商品图用的「裁切后贴片」。失败返回 None。"""
+    if SHOP is None:
+        return None
+    stamp = _asset_stamp()
+    if _SHOP_CACHE["ov"] is None or _SHOP_CACHE["stamp"] != stamp:
+        try:
+            _SHOP_CACHE["ov"] = SHOP.load_overlay_trimmed()
+            _SHOP_CACHE["stamp"] = stamp
+            _SHOP_CACHE["err"] = None
+            slog("SYS", f"商品图贴片已裁切载入（指纹 {stamp}）")
+        except Exception as e:
+            _SHOP_CACHE["err"] = f"{type(e).__name__}: {e}"
+            slog("WARN", f"商品图素材加载失败：{_SHOP_CACHE['err']}")
+    return _SHOP_CACHE["ov"]
+
+
+def shop_ready():
+    """前端用来决定要不要显示这个开关；返回 (可用, 不可用原因)"""
+    if SHOP is None:
+        return False, f"商品图模块不可用（{_SHOP_IMPORT_ERR}）"
+    if shop_assets() is None:
+        return False, f"商品图素材缺失：{_SHOP_CACHE['err']}"
+    return True, None
+
+
+def shop_plan(opt):
+    """把两个下拉选项收敛成实际的 (画布列表, 底色列表)。
+
+    前端理论上只会传合法值，但接口是裸的（手工 POST 也能打进来），
+    所以这里做白名单收敛，避免 SHOP.CANVAS_SPEC 抛 KeyError 把整首搞挂。
+    """
+    cv = opt.get("shopCanvas") if opt.get("shopCanvas") in ("long", "square", "both") else "both"
+    bg = opt.get("shopBg") if opt.get("shopBg") in ("white", "transparent", "both") else "both"
+    canvases = ("long", "square") if cv == "both" else (cv,)
+    bgs = ("white", "transparent") if bg == "both" else (bg,)
+    return canvases, bgs
+
+
+def render_shop(job, base, ppath, opt):
+    """给一首歌追加白底/透明底商品图。
+
+    返回 ({变体键: 任务内相对路径}, 失败原因)；变体键形如 "long_white"。
+    白底出 JPG、透明底出 PNG。
+    """
+    if SHOP is None:
+        return {}, f"商品图模块不可用（{_SHOP_IMPORT_ERR}）"
+    ov = shop_assets()
+    if ov is None:
+        return {}, f"商品图素材缺失（{_SHOP_CACHE['err']}）"
+
+    canvases, bgs = shop_plan(opt)
+    out_dir = os.path.join(job["dir"], "shop")
+    os.makedirs(out_dir, exist_ok=True)
+
+    made, err = {}, None
+    for kind in canvases:
+        for bg in bgs:
+            ext = ".png" if bg == "transparent" else ".jpg"
+            name = "%s-商品图-%s%s%s" % (base, SHOP_CANVAS_TAG[kind], SHOP_BG_TAG[bg], ext)
+            p = os.path.join(out_dir, name)
+            try:
+                im = SHOP.build_unit(ppath, ov, kind=kind, bg=bg)
+                SHOP.save_img(im, p, bg=bg)
+                im.close()
+            except Exception as e:
+                err = f"{type(e).__name__}: {e}"
+                log(job, f"  └ 商品图 {SHOP_CANVAS_TAG[kind]}{SHOP_BG_TAG[bg]} 失败：{err}", "warn")
+                continue
+            made[f"{kind}_{bg}"] = os.path.relpath(p, job["dir"])
+    return made, (None if made else err)
+
+
+
 # ---------------------------------------------------------------- 单首渲染
 
 def render_song(job, s, rank, opt):
@@ -373,6 +472,15 @@ def render_song(job, s, rank, opt):
         else:
             log(job, f"  └ 钥匙扣出图失败：{kc_err}", "warn")
 
+    # --- 4) 白底商品图（可选，复用刚出的播放界面当卡面）---
+    shop_rel = {}
+    if opt.get("shop"):
+        shop_rel, shop_err = render_shop(job, base, ppath, opt)
+        if shop_rel:
+            log(job, f"  └ 商品图 {len(shop_rel)} 张已出图：{_shop_label(shop_rel)}", "ok")
+        else:
+            log(job, f"  └ 商品图出图失败：{shop_err}", "warn")
+
     return {
         "rank": rank, "name": s["name"], "artist": s["artists"],
         "album": s.get("album", ""), "dur": fmt_dur(s["dur_ms"]),
@@ -381,10 +489,24 @@ def render_song(job, s, rank, opt):
         "playerUrl": url_of(job, os.path.relpath(ppath, job["dir"])),
         "playerJpgUrl": url_of(job, os.path.relpath(jpath, job["dir"])),
         "keychainUrl": url_of(job, kc_rel) if kc_rel else None,
+        "shopUrls": {k: url_of(job, v) for k, v in shop_rel.items()},
         "mm": f"{mm[0]:.1f}×{mm[1]:.1f}mm",
         "playerPath": ppath,
         "keychainPath": (os.path.join(job["dir"], kc_rel) if kc_rel else None),
+        "shopPaths": shop_rel,
     }, None
+
+
+def _shop_label(shop_rel):
+    """把变体键列表说成人话：竖长·白底 / 竖长·透明 / 方形·白底 …"""
+    order = ("long_white", "long_transparent", "square_white", "square_transparent")
+    tags = []
+    for k in order:
+        if k in shop_rel:
+            kind, _, bg = k.partition("_")
+            tags.append(f"{SHOP_CANVAS_TAG[kind]}·{'白底' if bg == 'white' else '透明'}")
+    return " / ".join(tags)
+
 
 
 def finish(job, made, ar_name, total_label, src=None):
@@ -414,6 +536,45 @@ def finish(job, made, ar_name, total_label, src=None):
         )
         job["keychainOverview"] = url_of(job, os.path.relpath(kgrid, job["dir"]))
         log(job, f"钥匙扣总览已生成（{len(kc_made)} 张）", "ok")
+
+    # 白底商品图拼版总览：竖长 / 方形各一张（用户选了哪种画布就出哪种）
+    shop_made = [it for it in made if it.get("shopPaths")]
+    if shop_made and job.get("shopGrid", True) and SHOP is not None:
+        job["phase"] = "生成商品图总览"
+        grids = []
+        for kind, label in (("long", "竖长"), ("square", "方形")):
+            # 白底优先；用户只选了透明底就退而用透明底拼
+            prefer = "white" if any(it["shopPaths"].get(f"{kind}_white") for it in shop_made) \
+                else "transparent"
+            units = []
+            for it in shop_made:
+                rel = it["shopPaths"].get(f"{kind}_{prefer}")
+                if rel:
+                    units.append(os.path.join(job["dir"], rel))
+            if not units:
+                continue
+            try:
+                ims = []
+                for p in units:
+                    with Image.open(p) as f:
+                        # 🔴 必须转 RGBA：白底版落盘是 JPG（RGB），而 build_grid
+                        #    内部用 alpha_composite，模式不匹配会抛
+                        #    ValueError: images do not match。
+                        #    CLI 那边单元是内存里现成的 RGBA，所以露不出这个问题。
+                        ims.append(f.convert("RGBA"))
+                g = SHOP.build_grid(ims, bg=prefer)
+                gname = "总览-商品图-%s-%s.%s" % (label,
+                                                "白底" if prefer == "white" else "透明",
+                                                "jpg" if prefer == "white" else "png")
+                gpath = os.path.join(job["dir"], gname)
+                SHOP.save_img(g, gpath, bg=prefer)
+                grids.append({"label": f"白底商品图总览 · {label}",
+                              "url": url_of(job, gname)})
+                log(job, f"商品图总览（{label}）已生成（{len(units)} 张，"
+                         f"{g.width}×{g.height}）", "ok")
+            except Exception as e:
+                log(job, f"商品图总览（{label}）失败：{type(e).__name__}: {e}", "warn")
+        job["shopGrids"] = grids
 
     with LOCK:
         job["elapsed"] = time.time() - job["t0"]
@@ -663,6 +824,14 @@ def run_upload(job, opt):
         else:
             log(job, f"  └ 钥匙扣出图失败：{kc_err}", "warn")
 
+    shop_rel = {}
+    if opt.get("shop"):
+        shop_rel, shop_err = render_shop(job, base, ppath, opt)
+        if shop_rel:
+            log(job, f"  └ 商品图 {len(shop_rel)} 张已出图：{_shop_label(shop_rel)}", "ok")
+        else:
+            log(job, f"  └ 商品图出图失败：{shop_err}", "warn")
+
     job["items"].append({
         "rank": 1, "name": title, "artist": artist, "album": "自定义上传",
         "dur": fmt_dur(dur * 1000) if dur else "--:--", "comments": cmt,
@@ -670,9 +839,11 @@ def run_upload(job, opt):
         "playerUrl": url_of(job, os.path.relpath(ppath, job["dir"])),
         "playerJpgUrl": url_of(job, os.path.relpath(jpath, job["dir"])),
         "keychainUrl": url_of(job, kc_rel) if kc_rel else None,
+        "shopUrls": {k: url_of(job, v) for k, v in shop_rel.items()},
         "mm": f"{mm[0]:.1f}×{mm[1]:.1f}mm",
         "playerPath": ppath,
         "keychainPath": (os.path.join(job["dir"], kc_rel) if kc_rel else None),
+        "shopPaths": shop_rel,
     })
     job["done"] = 1
     finish(job, job["items"], title, "30×50mm")
@@ -683,7 +854,7 @@ def run_upload(job, opt):
 def build_zip(job):
     zpath = os.path.join(job["dir"], f"{safe_name(job['title'])}.zip")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
-        for sub in ("covers", "players", "keychain"):
+        for sub in ("covers", "players", "keychain", "shop"):
             d = os.path.join(job["dir"], sub)
             if not os.path.isdir(d):
                 continue
@@ -691,10 +862,10 @@ def build_zip(job):
                 if f.startswith("_probe"):
                     continue
                 z.write(os.path.join(d, f), f"{sub}/{f}")
-        for name in ("总览.jpg", "总览-钥匙扣.jpg"):
-            p = os.path.join(job["dir"], name)
-            if os.path.exists(p):
-                z.write(p, name)
+        # 总览类文件都在任务根目录（总览.jpg / 总览-钥匙扣.jpg / 总览-商品图-*.jpg|png）
+        for f in sorted(os.listdir(job["dir"])):
+            if f.startswith("总览") and f.lower().endswith((".jpg", ".png")):
+                z.write(os.path.join(job["dir"], f), f)
     return zpath
 
 
@@ -806,9 +977,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if p == "/api/ping":
                 kc_ok, kc_why = keychain_ready()
+                sh_ok, sh_why = shop_ready()
                 return self._json({"ok": True, "app": APP_ID, "version": VERSION,
                                    "pid": os.getpid(), "port": self.server.server_port,
-                                   "keychain": kc_ok, "keychainWhy": kc_why})
+                                   "keychain": kc_ok, "keychainWhy": kc_why,
+                                   "shop": sh_ok, "shopWhy": sh_why})
             if p in ("/", "/index.html"):
                 return self._file(os.path.join(HERE, "index.html"))
             if p == "/favicon.ico":
@@ -988,6 +1161,12 @@ class Handler(BaseHTTPRequestHandler):
                 opt["follow"] = bool(opt.get("follow", True))
                 opt["allow_placeholder"] = bool(opt.get("allow_placeholder", False))
                 opt["keychain"] = bool(opt.get("keychain", False))
+                opt["shop"] = bool(opt.get("shop", False))
+                opt["shopGrid"] = bool(opt.get("shopGrid", True))
+                opt["shopCanvas"] = opt.get("shopCanvas") \
+                    if opt.get("shopCanvas") in ("long", "square", "both") else "both"
+                opt["shopBg"] = opt.get("shopBg") \
+                    if opt.get("shopBg") in ("white", "transparent", "both") else "both"
                 opt["top"] = max(1, min(opt["top"] or 10, 50))
                 opt["width"] = max(600, min(opt["width"] or 1181, 4000))
 
@@ -995,6 +1174,7 @@ class Handler(BaseHTTPRequestHandler):
                           "song": f"{opt.get('song', '')}",
                           "upload": f"{opt.get('title') or '自定义'}"}
                 job = new_job(titles.get(mode, "任务"), mode)
+                job["shopGrid"] = opt["shopGrid"]   # finish() 收尾时按它决定要不要拼版
 
                 runner = {"artist": run_artist, "song": run_song,
                           "upload": run_upload}.get(mode)

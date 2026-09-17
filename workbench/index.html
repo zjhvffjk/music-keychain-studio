@@ -155,6 +155,30 @@ details.adv summary:hover{color:var(--fg2)}
 .kctog.off{opacity:.6}
 .kctog.off .kchint{color:#b3261e}
 
+/* 商品图开关的二级选项（画布 / 底色 / 拼版）：主开关没勾时收起来，别占地方 */
+.kcopts{display:none;padding:1px 0 0}
+.kctog.on .kcopts{display:block}
+.optrow{display:flex;align-items:center;gap:9px;padding:8px 0 0}
+.optrow .olbl{font-size:11px;color:var(--dim2);flex:none}
+.kctog .chips{gap:5px}
+.kctog .chips button{padding:4px 11px;font-size:11.5px;border-radius:14px}
+
+/* 单首卡的「商品图」缩略条 */
+.shopstrip{display:flex;gap:6px;padding:8px;background:#fff;
+           border-top:1px solid var(--line)}
+.sst{position:relative;flex:1;min-width:0;cursor:zoom-in;border:1px solid var(--line);
+     border-radius:8px;overflow:hidden;background:#fff;transition:.16s}
+.sst:hover{border-color:var(--line2);box-shadow:0 4px 12px rgba(20,25,40,.10)}
+.sst img{width:100%;height:150px;object-fit:contain;display:block}
+.sst span{position:absolute;left:6px;bottom:5px;font-size:9.5px;color:#4b5262;
+  background:rgba(255,255,255,.92);border:1px solid var(--line);padding:1px 6px;
+  border-radius:20px;pointer-events:none}
+/* 透明底缩略图垫棋盘格 —— 不然在白卡上和白底版长得一模一样，看不出区别 */
+.sst.tr{background-color:#fff;
+  background-image:linear-gradient(45deg,#eceef2 25%,transparent 25%,transparent 75%,#eceef2 75%),
+                   linear-gradient(45deg,#eceef2 25%,transparent 25%,transparent 75%,#eceef2 75%);
+  background-size:14px 14px;background-position:0 0,7px 7px}
+
 /* 歌手卡 */
 .acard{display:flex;gap:12px;align-items:center;padding:12px;background:var(--card);
        border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;
@@ -263,7 +287,7 @@ details.adv summary:hover{color:var(--fg2)}
   background:rgba(0,0,0,.62);padding:2px 7px;border-radius:20px;letter-spacing:.3px;
   backdrop-filter:blur(4px);pointer-events:none}
 .item .ft{display:flex;gap:6px;padding:10px 13px;align-items:center;
-  border-top:1px solid var(--line)}
+  border-top:1px solid var(--line);flex-wrap:wrap}
 .item .ft .mm{flex:1;font-size:10.5px;color:var(--dim2);
   font-variant-numeric:tabular-nums}
 .mini{padding:5px 10px;border:1px solid var(--line2);border-radius:6px;
@@ -457,6 +481,42 @@ details.adv summary:hover{color:var(--fg2)}
         </div>
       </div>
 
+      <div class="kctog" id="shopBox" data-page-node-id="Shop1Qz7Wm4JsVnB6pLrA">
+        <div class="sw" data-page-node-id="Shop2W8Hq5NtZxM3vCdEf">
+          <span data-page-node-id="Shop3Ry6Lp2VbNw9sAjXk">
+            <b data-page-node-id="Shop4Mv8Tc3QnJw5hFbZp">同时出白底商品图</b>
+            <em data-page-node-id="Shop5Dk2Wz7XnQm4rGlyV">纯白底 · 钥匙扣当主角 · 每首最多 4 张</em>
+          </span>
+          <input type="checkbox" id="p_shop" data-page-node-id="Shop6Ps9Kd4BvJm2yWnQr">
+        </div>
+        <div class="kcopts" id="shopOpts" data-page-node-id="Shop7Fz3Qt8NrXw6mCbLv">
+          <div class="optrow" data-page-node-id="Shop8Gk4Pm1SvYh7nQdWz">
+            <span class="olbl" data-page-node-id="Shop9Hl5Qn2TwZi8oReXa">画布</span>
+            <div class="chips" id="shopCanvasChips" data-page-node-id="ShopATm6Ro3UxAj9pSfYb">
+              <button data-v="long" data-page-node-id="ShopBU7Sp4VyBk0qTgZc">竖长</button>
+              <button data-v="square" data-page-node-id="ShopCV8Tq5WzCl1rUhAd">方形</button>
+              <button class="on" data-v="both" data-page-node-id="ShopDW9Ur6XaDm2sViBe">两种</button>
+            </div>
+          </div>
+          <div class="optrow" data-page-node-id="ShopEX0Vs7YbEn3tWjCf">
+            <span class="olbl" data-page-node-id="ShopFY1Wt8ZcFo4uXkDg">底色</span>
+            <div class="chips" id="shopBgChips" data-page-node-id="ShopGZ2Xu9AdGp5vYlEh">
+              <button data-v="white" data-page-node-id="ShopHa3Yv0BeHq6wZmFi">白底</button>
+              <button data-v="transparent" data-page-node-id="ShopIb4Zw1CfIr7xAnGj">透明</button>
+              <button class="on" data-v="both" data-page-node-id="ShopJc5Ax2DgJs8yBoHk">两种</button>
+            </div>
+          </div>
+          <div class="sw" style="padding:9px 0 0" data-page-node-id="ShopKd6By3EhKt9zCpIl">
+            <span style="font-size:11.5px;color:var(--dim)" data-page-node-id="ShopLe7Cz4FiLu0aDqJm">另出拼版总览</span>
+            <input type="checkbox" id="p_shopGrid" checked data-page-node-id="ShopMf8Da5GjMv1bErKn">
+          </div>
+        </div>
+        <div class="kchint" id="shopHint" data-page-node-id="ShopNg9Eb6HkNw2cFsLo">
+          纯白底 / 透明底，钥匙扣放大当主角，<b>没有背景大图</b> —— 电商商品图的观感。
+          透明底出 PNG，可直接贴到任意底色上。
+        </div>
+      </div>
+
       <button class="go" id="btnGo" style="margin-top:18px" data-page-node-id="MEIkwVxIs7Pbiiuir0277t">开始生成</button>
     </div>
   </aside>
@@ -480,7 +540,8 @@ details.adv summary:hover{color:var(--fg2)}
           左侧选「歌手热门」查一位歌手，确认后取热门前 N 首<br data-page-node-id="BMB2AEZ0AYBpymvhkXRNra">
           每首会出两张图：<b data-page-node-id="v8HAJCplo339Kbj62R7jE6">1000×1000 正方形封面母版</b> + <b data-page-node-id="fYIKeSYhGgrKQbFMICSYMi">30×50mm 播放界面</b><br data-page-node-id="rQGJUH93n8v9vRXZwwIFwI">
           素材直接取自网易云 CDN 母版，不是手机截图<br data-page-node-id="KcEmpty0Xq7Lm2NvB4tRwZs">
-          勾选上面的「同时出钥匙扣商品图」，每首再多一张 <b data-page-node-id="KcEmpty1Dk9Wz3QmNr6sVbXp">1920×1920 钥匙扣实物效果图</b>
+          勾选上面的「同时出钥匙扣商品图」，每首再多一张 <b data-page-node-id="KcEmpty1Dk9Wz3QmNr6sVbXp">1920×1920 钥匙扣实物效果图</b><br data-page-node-id="ShopEmpty0Xq7Lm2NvB4tRw">
+          勾选「同时出白底商品图」，每首再出 <b data-page-node-id="ShopEmpty1Dk9Wz3QmNr6sVb">纯白底 / 透明底的商品图</b>（竖长、方形），并附拼版总览
         </p>
       </div>
     </div>
@@ -606,6 +667,8 @@ let TIMER  = null;
 let UPLOAD = null;
 let PICK   = null;   // 单曲模式下选中的歌曲（索引）
 let SEL    = null;   // 选中的候选对象（含 source / albummid / id）
+let SHOP_CV = 'both';        // 商品图画布：long / square / both
+let SHOP_BG = 'both';        // 商品图底色：white / transparent / both
 
 /* ---------------- 小工具 ---------------- */
 let toastT;
@@ -700,6 +763,32 @@ $$('#srcChips button').forEach(b=>{
     SRC = b.dataset.s;
   };
 });
+
+/* ---------------- 白底商品图 ---------------- */
+/* 二级选项只在主开关打开时才展开 —— 侧栏本来就长，不勾的时候别占地方 */
+$('#p_shop').onchange = e =>{
+  document.getElementById('shopBox').classList.toggle('on', e.target.checked);
+};
+$$('#shopCanvasChips button').forEach(b=>{
+  b.onclick = ()=>{
+    $$('#shopCanvasChips button').forEach(x=>x.classList.toggle('on', x===b));
+    SHOP_CV = b.dataset.v;
+  };
+});
+$$('#shopBgChips button').forEach(b=>{
+  b.onclick = ()=>{
+    $$('#shopBgChips button').forEach(x=>x.classList.toggle('on', x===b));
+    SHOP_BG = b.dataset.v;
+  };
+});
+/* 商品图四种变体的中文名与展示顺序（后端键名 -> 标签） */
+const SHOP_TAG = {
+  long_white:         '竖长 · 白底',
+  long_transparent:   '竖长 · 透明',
+  square_white:       '方形 · 白底',
+  square_transparent: '方形 · 透明'
+};
+const SHOP_ORDER = Object.keys(SHOP_TAG);
 
 /* ---------------- 查询歌手 ---------------- */
 $('#btnQueryArtist').onclick = async ()=>{
@@ -844,7 +933,11 @@ function collect(){
     vip:        $('#p_vip').checked,
     follow:     $('#p_follow').checked,
     allow_placeholder: $('#p_ph').checked,
-    keychain:   $('#p_keychain').checked && !$('#p_keychain').disabled
+    keychain:   $('#p_keychain').checked && !$('#p_keychain').disabled,
+    shop:       $('#p_shop').checked && !$('#p_shop').disabled,
+    shopCanvas: SHOP_CV,
+    shopBg:     SHOP_BG,
+    shopGrid:   $('#p_shopGrid').checked
   };
   if(MODE === 'artist'){ o.artist = $('#artistName').value.trim(); o.top = TOP; o.source = SRC; }
   else if(MODE === 'song'){
@@ -938,6 +1031,32 @@ function render(d){
   paint(d);
 }
 
+/* 单首的商品图缩略条：优先展示白底那两张（透明版在白卡上和白底几乎一样，
+   只靠棋盘格区分，没必要占格子），白底一张都没出才退回透明版。最多两格。 */
+function shopShown(it){
+  const u = it.shopUrls || {};
+  const keys = ['long_white','square_white'].filter(k=>u[k]);
+  if(!keys.length) keys.push(...Object.keys(u).slice(0,2));
+  return keys;
+}
+function shopStrip(it){
+  const keys = shopShown(it);
+  if(!keys.length) return '';
+  return '<div class="shopstrip">' + keys.map(k=>`
+      <div class="sst ${k.endsWith('transparent') ? 'tr' : ''}"
+           onclick="zoom('${esc(asset(it.shopUrls[k]))}','${esc(it.name)} ${esc(SHOP_TAG[k]||k)}')">
+        <img src="${esc(asset(it.shopUrls[k]))}" alt="" loading="lazy">
+        <span>${esc(SHOP_TAG[k]||k)}</span>
+      </div>`).join('') + '</div>';
+}
+function shopLinks(it){
+  const u = it.shopUrls || {};
+  return SHOP_ORDER.filter(k=>u[k]).map(k=>
+    `\n          <a class="mini" href="${esc(asset(u[k]))}?dl=1"
+             title="商品图 · ${esc(SHOP_TAG[k]||k)}">${esc((SHOP_TAG[k]||k).replace(' · ','').replace(' ',''))}</a>`
+  ).join('');
+}
+
 function paint(d){
   const box = $('#content');
   let html = '';
@@ -970,6 +1089,16 @@ function paint(d){
     </div>`;
   }
 
+  (d.shopGrids||[]).forEach(g=>{
+    html += `<div style="margin-bottom:18px;border:1px solid var(--line);border-radius:12px;
+      overflow:hidden;background:#fbfbfc">
+      <div style="padding:9px 14px;font-size:11.5px;color:var(--dim);
+        border-bottom:1px solid var(--line)">${esc(g.label)}</div>
+      <img src="${esc(asset(g.url))}" style="width:100%;display:block;cursor:zoom-in"
+           onclick="zoom('${esc(asset(g.url))}','${esc(g.label)}')">
+    </div>`;
+  });
+
   if(d.items && d.items.length){
     html += '<div class="grid">' + d.items.map(it=>`
       <div class="item">
@@ -993,13 +1122,13 @@ function paint(d){
             <img src="${esc(asset(it.keychainUrl))}" alt="" loading="lazy">
             <span class="cap">钥匙扣</span>
           </div>` : ''}
-        </div>
+        </div>${shopStrip(it)}
         <div class="ft">
           <span class="mm">${esc(it.mm)} @ ${$('#p_dpi').value}DPI</span>
           <a class="mini" href="${esc(asset(it.coverUrl))}?dl=1">封面</a>
           <a class="mini" href="${esc(asset(it.playerJpgUrl))}?dl=1">JPG</a>
           <a class="mini" href="${esc(asset(it.playerUrl))}?dl=1">PNG</a>${it.keychainUrl ?
-          `\n          <a class="mini" href="${esc(asset(it.keychainUrl))}?dl=1">钥匙扣</a>` : ''}
+          `\n          <a class="mini" href="${esc(asset(it.keychainUrl))}?dl=1">钥匙扣</a>` : ''}${shopLinks(it)}
         </div>
       </div>`).join('') + '</div>';
   }else if(d.status === 'running'){
@@ -1092,6 +1221,13 @@ $('.brand h1').ondblclick = ()=> showConn(true);
     box.disabled = true; box.checked = false;
     document.getElementById('kcBox').className = 'kctog off';
     $('#kcHint').textContent = '当前不可用：' + (info.keychainWhy || '素材未就绪');
+  }
+  // 白底商品图和钥匙扣用的是同一套贴片，判据同样要落到 ping 上
+  if(info.shop === false){
+    const box = $('#p_shop');
+    box.disabled = true; box.checked = false;
+    document.getElementById('shopBox').className = 'kctog off';
+    $('#shopHint').textContent = '当前不可用：' + (info.shopWhy || '素材未就绪');
   }
 })();
 </script>
