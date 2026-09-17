@@ -179,6 +179,14 @@ details.adv summary:hover{color:var(--fg2)}
                    linear-gradient(45deg,#eceef2 25%,transparent 25%,transparent 75%,#eceef2 75%);
   background-size:14px 14px;background-position:0 0,7px 7px}
 
+/* 黑胶缩略条：1:2 竖图，单独占一行 —— 塞进上面那一行会把整行撑高，
+   封面/播放界面/钥匙扣三格就会被拉出大片空白。 */
+.vinstrip{display:flex;gap:11px;padding:8px 10px;background:#fff;
+          border-top:1px solid var(--line);align-items:center}
+.vinstrip .sst{flex:none;width:86px}
+.vinstrip .sst img{height:172px;object-fit:contain}
+.vinstrip .vt{font-size:11px;color:var(--dim2);line-height:1.85}
+
 /* 歌手卡 */
 .acard{display:flex;gap:12px;align-items:center;padding:12px;background:var(--card);
        border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;
@@ -561,6 +569,30 @@ details.adv summary:hover{color:var(--fg2)}
         </div>
       </div>
 
+      <div class="kctog" id="vinylBox" data-page-node-id="Vinyl1Qz7Wm4JsVnB6pLrA">
+        <div class="sw" data-page-node-id="Vinyl2W8Hq5NtZxM3vCdEf">
+          <span data-page-node-id="Vinyl3Ry6Lp2VbNw9sAjXk">
+            <b data-page-node-id="Vinyl4Mv8Tc3QnJw5hFbZp">同时出黑胶播放界面</b>
+            <em data-page-node-id="Vinyl5Dk2Wz7XnQm4rGlyV">1:2 竖图 · 唱片 + 唱臂 + 控制区 · 加一张约 1 秒</em>
+          </span>
+          <input type="checkbox" id="p_vinyl" data-page-node-id="Vinyl6Ps9Kd4BvJm2yWnQr">
+        </div>
+        <div class="kcopts" id="vinylOpts" data-page-node-id="Vinyl7Fz3Qt8NrXw6mCbLv">
+          <div class="optrow" data-page-node-id="Vinyl8Gk4Pm1SvYh7nQdWz">
+            <span class="olbl" data-page-node-id="Vinyl9Hl5Qn2TwZi8oReXa">画布宽</span>
+            <div class="chips" id="vinylWChips" data-page-node-id="VinylATm6Ro3UxAj9pSfYb">
+              <button data-w="900" data-page-node-id="VinylBa3Yv0BeHq6wZmFi">900</button>
+              <button data-w="1200" class="on" data-page-node-id="VinylCb4Zw1CfIr7xAnGj">1200</button>
+              <button data-w="1500" data-page-node-id="VinylDc5Ax2DgJs8yBoHk">1500</button>
+            </div>
+          </div>
+        </div>
+        <div class="kchint" id="vinylHint" data-page-node-id="VinylEg9Eb6HkNw2cFsLo">
+          黑胶播放界面：深色底 + 圆形唱片 + 唱臂摆位 + 完整控制区。
+          复用同一张封面，高 = 画布宽 × 2。
+        </div>
+      </div>
+
       <button class="go" id="btnGo" style="margin-top:18px" data-page-node-id="MEIkwVxIs7Pbiiuir0277t">开始生成</button>
     </div>
   </aside>
@@ -737,6 +769,9 @@ let SHOP_CV      = [];       // 选中的画布（多选）
 let SHOP_BG      = 'both';   // 底色：white / transparent / both
 const SHOP_TAG   = {};       // 变体键 -> 展示名
 
+/* 黑胶画布宽（高 = 宽×2）。档位是白名单，后端也会再收敛一次。 */
+let VINYL_W = 1200;
+
 /* ---------------- 小工具 ---------------- */
 let toastT;
 function toast(msg){
@@ -887,6 +922,18 @@ function initShopPresets(){
   SHOP_CV = SHOP_CV.filter(k=> SHOP_KEYS.includes(k));
   renderShopCanvasChips();
 }
+
+/* 黑胶宽档位同样来自后端（vinylWidths），探测完成后调用。 */
+function initVinylWidths(){
+  const box = $('#vinylWChips');
+  if(!box) return;
+  const ws = (BACKEND.info && BACKEND.info.vinylWidths) || [];
+  const list = ws.length ? ws : [900, 1200, 1500];
+  if(!list.includes(VINYL_W)) VINYL_W = list.includes(1200) ? 1200 : list[0];
+  box.innerHTML = list.map(w=>
+    `<button data-w="${esc(String(w))}">${esc(String(w))}</button>`).join('');
+  bindVinylChips();
+}
 $$('#shopBgChips button').forEach(b=>{
   b.onclick = ()=>{
     $$('#shopBgChips button').forEach(x=>x.classList.toggle('on', x===b));
@@ -895,6 +942,23 @@ $$('#shopBgChips button').forEach(b=>{
 });
 /* 变体的展示名（SHOP_TAG）与顺序（SHOP_ORDER）改由 initShopPresets() 生成，
    因为预设是可配置的 —— 写死四种会导致用户新增的画布没有名字。 */
+
+/* ---------------- 黑胶播放界面 ---------------- */
+$('#p_vinyl').onchange = e =>{
+  document.getElementById('vinylBox').classList.toggle('on', e.target.checked);
+};
+/* 宽档位按钮：先绑一次静态兜底，探测完成后 initVinylWidths() 会按后端下发的
+   vinylWidths 重渲染再重绑 —— 与画布预设同一原则，前端不写死档位。 */
+function bindVinylChips(){
+  $$('#vinylWChips button').forEach(b=>{
+    b.classList.toggle('on', parseInt(b.dataset.w, 10) === VINYL_W);
+    b.onclick = ()=>{
+      $$('#vinylWChips button').forEach(x=>x.classList.toggle('on', x===b));
+      VINYL_W = parseInt(b.dataset.w, 10) || 1200;
+    };
+  });
+}
+bindVinylChips();
 
 /* ---------------- 查询歌手 ---------------- */
 $('#btnQueryArtist').onclick = async ()=>{
@@ -1043,7 +1107,9 @@ function collect(){
     shop:       $('#p_shop').checked && !$('#p_shop').disabled,
     shopCanvas: SHOP_CV,
     shopBg:     SHOP_BG,
-    shopGrid:   $('#p_shopGrid').checked
+    shopGrid:   $('#p_shopGrid').checked,
+    vinyl:      $('#p_vinyl').checked && !$('#p_vinyl').disabled,
+    vinylWidth: VINYL_W
   };
   if(MODE === 'artist'){ o.artist = $('#artistName').value.trim(); o.top = TOP; o.source = SRC; }
   else if(MODE === 'song'){
@@ -1165,6 +1231,18 @@ function shopLinks(it){
   ).join('');
 }
 
+/* 黑胶：1:2 竖图，单独一行（塞进 .shots 会把那一行撑高、把前三格拉出空白）。 */
+function vinylStrip(it){
+  if(!it.vinylUrl) return '';
+  return `<div class="vinstrip">
+      <div class="sst" onclick="zoom('${jsq(asset(it.vinylUrl))}','${jsq(it.name)} 黑胶播放界面')">
+        <img src="${esc(asset(it.vinylUrl))}" alt="" loading="lazy">
+        <span>黑胶</span>
+      </div>
+      <div class="vt">黑胶播放界面<br>1:2 竖图 · JPG</div>
+    </div>`;
+}
+
 function paint(d){
   const box = $('#content');
   let html = '';
@@ -1207,6 +1285,16 @@ function paint(d){
     </div>`;
   });
 
+  if(d.vinylOverview){
+    html += `<div style="margin-bottom:18px;border:1px solid var(--line);border-radius:12px;
+      overflow:hidden;background:#fbfbfc">
+      <div style="padding:9px 14px;font-size:11.5px;color:var(--dim);
+        border-bottom:1px solid var(--line)">黑胶播放界面总览</div>
+      <img src="${esc(asset(d.vinylOverview))}" style="width:100%;display:block;cursor:zoom-in"
+           onclick="zoom('${jsq(asset(d.vinylOverview))}','黑胶播放界面总览')">
+    </div>`;
+  }
+
   if(d.items && d.items.length){
     html += '<div class="grid">' + d.items.map(it=>`
       <div class="item">
@@ -1230,13 +1318,14 @@ function paint(d){
             <img src="${esc(asset(it.keychainUrl))}" alt="" loading="lazy">
             <span class="cap">钥匙扣</span>
           </div>` : ''}
-        </div>${shopStrip(it)}
+        </div>${shopStrip(it)}${vinylStrip(it)}
         <div class="ft">
           <span class="mm">${esc(it.mm)} @ ${$('#p_dpi').value}DPI</span>
           <a class="mini" href="${esc(asset(it.coverUrl))}?dl=1">封面</a>
           <a class="mini" href="${esc(asset(it.playerJpgUrl))}?dl=1">JPG</a>
           <a class="mini" href="${esc(asset(it.playerUrl))}?dl=1">PNG</a>${it.keychainUrl ?
-          `\n          <a class="mini" href="${esc(asset(it.keychainUrl))}?dl=1">钥匙扣</a>` : ''}${shopLinks(it)}
+          `\n          <a class="mini" href="${esc(asset(it.keychainUrl))}?dl=1">钥匙扣</a>` : ''}${it.vinylUrl ?
+          `\n          <a class="mini" href="${esc(asset(it.vinylUrl))}?dl=1">黑胶</a>` : ''}${shopLinks(it)}
         </div>
       </div>`).join('') + '</div>';
   }else if(d.status === 'running'){
@@ -1265,7 +1354,17 @@ function paint(d){
 /* ---------------- 放大 ---------------- */
 function zoom(url, cap){
   $('#lbimg').src = url;
-  $('#lbcap').innerHTML = cap + '<small>点击任意处关闭 · 右键可另存</small>';
+  /* 🔴 绝不能把 cap 拼进 innerHTML。
+     cap 来自歌名/歌手/画布名（用户可控），内联 onclick 里 jsq() 只保证
+     「JS 字符串不被引号截断」—— 浏览器解析属性时会先把 HTML 实体**解码回原字符**，
+     所以传到这里的就是**原文**（如 `<img src=x onerror=...>`）。
+     拼进 innerHTML 会被当标签执行 → 存储型 XSS。
+     用 textContent 建文本节点，标签只会原样显示成文字。 */
+  const box = $('#lbcap');
+  box.textContent = String(cap == null ? '' : cap);
+  const sm = document.createElement('small');
+  sm.textContent = '点击任意处关闭 · 右键可另存';
+  box.appendChild(sm);
   $('#lb').classList.add('on');
 }
 $('#lb').onclick = ()=> $('#lb').classList.remove('on');
@@ -1319,6 +1418,7 @@ function libDetail(j){
   const over = [];
   if(j.overviewUrl) over.push(['整组总览', j.overviewUrl]);
   if(j.keychainOverviewUrl) over.push(['钥匙扣总览', j.keychainOverviewUrl]);
+  if(j.vinylOverviewUrl) over.push(['黑胶总览', j.vinylOverviewUrl]);
   (j.shopGrids || []).forEach(g => { if(g.url) over.push([g.label || '商品图总览', g.url]); });
   if(over.length){
     h += '<div class="dt">总览图</div><div class="ims">' + over.map(([cap,u]) =>
@@ -1336,6 +1436,7 @@ function libDetail(j){
       if(it.playerJpgUrl) links.push(['播放图JPG', it.playerJpgUrl]);
       if(it.playerUrl) links.push(['播放图PNG', it.playerUrl]);
       if(it.keychainUrl) links.push(['钥匙扣', it.keychainUrl]);
+      if(it.vinylUrl) links.push(['黑胶', it.vinylUrl]);
       Object.keys(it.shopUrls || {}).forEach(k=>{
         if(!it.shopUrls[k]) return;
         // 展示名尽量用界面上那套中文（SHOP_TAG 由 /api/ping 下发的画布预设生成）；
@@ -1358,6 +1459,7 @@ function libRow(j){
   const bits = [];
   bits.push(`${c.songs || 0} 首`);
   if(c.keychain) bits.push(`钥匙扣 ${c.keychain}`);
+  if(c.vinyl) bits.push(`黑胶 ${c.vinyl}`);
   if(c.shop) bits.push(`商品图 ${c.shop}`);
   if(c.grids) bits.push(`拼版 ${c.grids}`);
   const srcTag = j.source ? ` · ${j.source === 'qq' ? 'QQ音乐' : '网易云'}` : '';
@@ -1504,6 +1606,14 @@ $('.brand h1').ondblclick = ()=> showConn(true);
   }
   // 预设清单来自 ping，必须等探测完成后再初始化画布按钮
   initShopPresets();
+  initVinylWidths();
+  // 黑胶只有字体依赖，正常情况都可用了；万一后端 import 失败，别让开关假装能用
+  if(info.vinyl === false){
+    const box = $('#p_vinyl');
+    box.disabled = true; box.checked = false;
+    document.getElementById('vinylBox').className = 'kctog off';
+    $('#vinylHint').textContent = '当前不可用：' + (info.vinylWhy || '模块未就绪');
+  }
 })();
 </script>
 </body>

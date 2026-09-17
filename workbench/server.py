@@ -7,6 +7,8 @@
     fetch163.py / fetch_qq.py  抓取(CDN 母版封面, 非截图; 双源自动回退)
     make_player.py             合成(30x50mm 方形封面播放界面)
     make_keychain.py           合成(1920 钥匙扣商品图, 5 层)
+    make_keychain_shop.py      合成(白底/透明底商品图, 可拼版)
+    make_vinyl.py              合成(黑胶播放界面, 1:2 竖图)
     make_set.py                批处理(热门前 N 首 + 占位图剔除 + 总览)
 
 只有 requests / Pillow / numpy 三个依赖, HTTP 服务用标准库, 不引入框架。
@@ -42,6 +44,7 @@
 """
 import io
 import json
+import math
 import os
 import shutil
 import socket
@@ -108,6 +111,14 @@ try:
 except Exception as _e:                      # pragma: no cover
     SHOP, _SHOP_IMPORT_ERR = None, f"{type(_e).__name__}: {_e}"
 
+# 黑胶播放界面（1:2 竖图）：只有字体依赖，没有贴片素材，所以几乎不会缺。
+# 仍然按可选能力处理 —— 万一 pillow 版本不支持某个 API，也只让这一项不可用。
+try:
+    import make_vinyl as VINYL
+    _VINYL_IMPORT_ERR = None
+except Exception as _e:                      # pragma: no cover
+    VINYL, _VINYL_IMPORT_ERR = None, f"{type(_e).__name__}: {_e}"
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -121,7 +132,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.7.0"   # 1.7.0: 作品库地基（任务元数据 meta.json 落盘 + /api/jobs 列表/删除/重下）
+VERSION = "1.8.0"   # 1.8.0: 黑胶播放界面接入（1:2 竖图 + 宽度三档 + 黑胶总览）
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -168,6 +179,8 @@ DEFAULTS = {
     "shopCanvas": ["long", "square"],   # 商品图画布：config/canvas_presets.json 里的 key，可多选
     "shopBg": "both",          # 商品图底色: white 白底 / transparent 透明 / both
     "shopGrid": True,          # 商品图是否另出拼版总览
+    "vinyl": False,            # 是否同时出「黑胶播放界面」（1:2 竖图）
+    "vinylWidth": 1200,        # 黑胶图宽（高 = 2×宽）；900/1200/1500 三档给前端选
 }
 
 JOBS = {}
@@ -229,6 +242,7 @@ def snap(job):
             d.pop("playerPath", None)      # 内部字段：本机绝对路径，不下发
             d.pop("coverPath", None)
             d.pop("keychainPath", None)
+            d.pop("vinylPath", None)
             d.pop("shopPaths", None)
             items.append(d)
         return {
@@ -241,6 +255,7 @@ def snap(job):
             "error": job["error"],
             "overview": job["overview"],
             "keychainOverview": job.get("keychainOverview"),
+            "vinylOverview": job.get("vinylOverview"),
             "shopGrids": job.get("shopGrids") or [],
             "elapsed": round(job["elapsed"], 1),
         }
@@ -303,6 +318,7 @@ def _meta_of(job):
             # 播放界面同时存了 png 与 jpg（同名不同后缀），不必再占一个字段
             "playerJpg": (os.path.splitext(player)[0] + ".jpg") if player else None,
             "keychain": _rel(job, it.get("keychainPath")),
+            "vinyl": _rel(job, it.get("vinylPath")),
             "shop": dict(it.get("shopPaths") or {}),
         })
 
@@ -323,10 +339,12 @@ def _meta_of(job):
         "opt": job.get("opt") or {},
         "overview": job.get("overviewFile"),
         "keychainOverview": job.get("keychainOverviewFile"),
+        "vinylOverview": job.get("vinylOverviewFile"),
         "shopGrids": list(job.get("shopGrids") or []),
         "counts": {
             "songs": len(items),
             "keychain": sum(1 for i in items if i.get("keychain")),
+            "vinyl": sum(1 for i in items if i.get("vinyl")),
             "shop": sum(len(i.get("shop") or {}) for i in items),
             "grids": len(job.get("shopGrids") or []),
         },
@@ -423,6 +441,38 @@ def _as_dict(v):
     return v if isinstance(v, dict) else {}
 
 
+def _as_list(v):
+    """同上：非 list 一律当空表。
+
+    ⚠️ 不能写成 `v or []` —— 那只挡得住 None / 空表，`5`、`"abc"` 这种
+    truthy 的非可迭代值照样漏过去，迭代时抛 TypeError，
+    于是**整个 /api/jobs 500**（= 作品库直接打不开）。一条坏 meta 只该坏它自己。
+    """
+    return v if isinstance(v, list) else []
+
+
+_FALSEY = {"", "0", "false", "no", "off", "none", "null"}
+
+
+def _as_bool(v, default=False):
+    """把请求里的布尔开关收敛成真 bool。
+
+    前端发的是真布尔，但接口是裸的（curl / 手工 POST / 缓存的老页面都能打进来）。
+    ⚠️ **不能直接 `bool(v)`**：`bool("false")` 是 True ——
+    用户明确关掉的开关反而会被打开，且请求里写 `"false"` 看着毫无破绽。
+    字符串按常见假值表判，其余非空串当真；数字 0 为假。
+    """
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v != 0
+    if isinstance(v, str):
+        return v.strip().lower() not in _FALSEY
+    return default
+
+
 def _meta_ts(m):
     """排序键。createdTs 可能是数字、字符串、缺失或 None，
     直接拿它 sort 会在混合类型时抛 TypeError（Py3 不允许 int 与 str 比较）。"""
@@ -443,7 +493,7 @@ def job_card(m):
     这张卡片难看，绝不能让 `/api/jobs` 整个 500（那等于整个作品库打不开）。
     """
     jid = str(m.get("id") or "")
-    raw = [x for x in (m.get("items") or []) if isinstance(x, dict)]
+    raw = [x for x in _as_list(m.get("items")) if isinstance(x, dict)]
 
     thumb = None
     for it in raw:
@@ -463,10 +513,11 @@ def job_card(m):
             "playerUrl": _asset_url(jid, it.get("player")),
             "playerJpgUrl": _asset_url(jid, it.get("playerJpg")),
             "keychainUrl": _asset_url(jid, it.get("keychain")),
+            "vinylUrl": _asset_url(jid, it.get("vinyl")),
             "shopUrls": {str(k): _asset_url(jid, v) for k, v in shop.items()},
         })
 
-    grids = [g for g in (m.get("shopGrids") or []) if isinstance(g, dict)]
+    grids = [g for g in _as_list(m.get("shopGrids")) if isinstance(g, dict)]
     live = JOBS.get(jid)
     return {
         "id": jid,
@@ -483,6 +534,7 @@ def job_card(m):
         "thumb": thumb,
         "overviewUrl": _asset_url(jid, m.get("overview")),
         "keychainOverviewUrl": _asset_url(jid, m.get("keychainOverview")),
+        "vinylOverviewUrl": _asset_url(jid, m.get("vinylOverview")),
         "shopGrids": [{"label": g.get("label"),
                        "url": _asset_url(jid, g.get("file"))}
                       for g in grids],
@@ -671,6 +723,54 @@ def render_shop(job, base, ppath, opt):
     return made, (None if made else err)
 
 
+# ---------------------------------------------------------------- 黑胶播放界面
+
+# 黑胶图宽可选档位。上游 make_vinyl.make(width=) 决定了画布尺寸（高 = 2×宽），
+# 这里收敛成白名单：接口是裸的（手工 POST 也能打进来），
+# 用户传个 99999 会让服务端去分配 99999×199998 的图，直接把内存打死。
+VINYL_WIDTHS = (900, 1200, 1500)
+VINYL_DEFAULT_WIDTH = 1200
+
+
+def vinyl_ready():
+    """前端用来决定要不要显示这个开关；返回 (可用, 不可用原因)"""
+    if VINYL is None:
+        return False, f"黑胶模块不可用（{_VINYL_IMPORT_ERR}）"
+    return True, None
+
+
+def vinyl_width(opt):
+    """把前端传来的宽度收敛到白名单档位（脏值 / 越界 / 非有限 → 回落默认）。
+
+    ⚠️ 不能只 catch (TypeError, ValueError)：JSON 标准虽禁 Infinity，但
+    **Python 的 json.loads 默认接受 `Infinity` / `NaN` 字面量**，
+    而 `int(float('inf'))` 抛的是 **OverflowError** —— 漏掉它，这一首的黑胶会
+    整个失败（日志里只有一句 OverflowError，看起来像"随机不出图"）。
+    """
+    try:
+        w = int(opt.get("vinylWidth"))
+    except (TypeError, ValueError, OverflowError):
+        return VINYL_DEFAULT_WIDTH
+    return w if w in VINYL_WIDTHS else VINYL_DEFAULT_WIDTH
+
+
+def render_vinyl(job, base, cpath, title, artist, dur_s, opt):
+    """给一首歌追加一张黑胶播放界面图。返回 (相对路径, 失败原因)"""
+    if VINYL is None:
+        return None, f"黑胶模块不可用（{_VINYL_IMPORT_ERR}）"
+    out_dir = os.path.join(job["dir"], "vinyl")
+    os.makedirs(out_dir, exist_ok=True)
+    vpath = os.path.join(out_dir, base + "-黑胶.jpg")
+    played = opt.get("played")
+    try:
+        VINYL.make(cpath, vpath, title, artist, dur_s,
+                   width=vinyl_width(opt),
+                   played_ratio=(0.10 if played is None else played))
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+    return os.path.relpath(vpath, job["dir"]), None
+
+
 
 # ---------------------------------------------------------------- 单首渲染
 
@@ -752,6 +852,16 @@ def render_song(job, s, rank, opt):
         else:
             log(job, f"  └ 商品图出图失败：{shop_err}", "warn")
 
+    # --- 5) 黑胶播放界面（可选，复用刚出的封面 + 歌曲信息）---
+    vin_rel = None
+    if opt.get("vinyl"):
+        vin_rel, vin_err = render_vinyl(
+            job, base, cpath, s["name"], s["artists"], int(s["dur_ms"] / 1000), opt)
+        if vin_rel:
+            log(job, f"  └ 黑胶播放界面 {vinyl_width(opt)}×{vinyl_width(opt) * 2} 已出图", "ok")
+        else:
+            log(job, f"  └ 黑胶出图失败：{vin_err}", "warn")
+
     return {
         "rank": rank, "name": s["name"], "artist": s["artists"],
         "album": s.get("album", ""), "dur": fmt_dur(s["dur_ms"]),
@@ -760,11 +870,13 @@ def render_song(job, s, rank, opt):
         "playerUrl": url_of(job, os.path.relpath(ppath, job["dir"])),
         "playerJpgUrl": url_of(job, os.path.relpath(jpath, job["dir"])),
         "keychainUrl": url_of(job, kc_rel) if kc_rel else None,
+        "vinylUrl": url_of(job, vin_rel) if vin_rel else None,
         "shopUrls": {k: url_of(job, v) for k, v in shop_rel.items()},
         "mm": f"{mm[0]:.1f}×{mm[1]:.1f}mm",
         "coverPath": cpath,
         "playerPath": ppath,
         "keychainPath": (os.path.join(job["dir"], kc_rel) if kc_rel else None),
+        "vinylPath": (os.path.join(job["dir"], vin_rel) if vin_rel else None),
         "shopPaths": shop_rel,
     }, None
 
@@ -818,6 +930,20 @@ def finish(job, made, ar_name, total_label, src=None):
         job["keychainOverview"] = url_of(job, os.path.relpath(kgrid, job["dir"]))
         job["keychainOverviewFile"] = _rel(job, kgrid)
         log(job, f"钥匙扣总览已生成（{len(kc_made)} 张）", "ok")
+
+    # 黑胶总览（1:2 竖图 → ratio=2.0，并按比例收窄缩略宽，别让总览图过高）
+    vn_made = [it for it in made if it.get("vinylPath")]
+    if vn_made:
+        job["phase"] = "生成黑胶总览"
+        vgrid = contact_sheet(
+            [(it["vinylPath"], f"{it['rank']:02d} {it['name']}") for it in vn_made],
+            os.path.join(job["dir"], "总览-黑胶.jpg"),
+            cols=min(5, len(vn_made)), thumb_w=170, ratio=2.0,
+            title=f"{ar_name} · 黑胶播放界面{tag}",
+        )
+        job["vinylOverview"] = url_of(job, os.path.relpath(vgrid, job["dir"]))
+        job["vinylOverviewFile"] = _rel(job, vgrid)
+        log(job, f"黑胶总览已生成（{len(vn_made)} 张）", "ok")
 
     # 商品图拼版总览：用户选了哪几种画布就出几张（不再写死竖长/方形）
     shop_made = [it for it in made if it.get("shopPaths")]
@@ -1128,6 +1254,14 @@ def run_upload(job, opt):
         else:
             log(job, f"  └ 商品图出图失败：{shop_err}", "warn")
 
+    vin_rel = None
+    if opt.get("vinyl"):
+        vin_rel, vin_err = render_vinyl(job, base, cpath, title, artist, dur, opt)
+        if vin_rel:
+            log(job, f"  └ 黑胶播放界面 {vinyl_width(opt)}×{vinyl_width(opt) * 2} 已出图", "ok")
+        else:
+            log(job, f"  └ 黑胶出图失败：{vin_err}", "warn")
+
     job["items"].append({
         "rank": 1, "name": title, "artist": artist, "album": "自定义上传",
         "dur": fmt_dur(dur * 1000) if dur else "--:--", "comments": cmt,
@@ -1135,11 +1269,13 @@ def run_upload(job, opt):
         "playerUrl": url_of(job, os.path.relpath(ppath, job["dir"])),
         "playerJpgUrl": url_of(job, os.path.relpath(jpath, job["dir"])),
         "keychainUrl": url_of(job, kc_rel) if kc_rel else None,
+        "vinylUrl": url_of(job, vin_rel) if vin_rel else None,
         "shopUrls": {k: url_of(job, v) for k, v in shop_rel.items()},
         "mm": f"{mm[0]:.1f}×{mm[1]:.1f}mm",
         "coverPath": cpath,
         "playerPath": ppath,
         "keychainPath": (os.path.join(job["dir"], kc_rel) if kc_rel else None),
+        "vinylPath": (os.path.join(job["dir"], vin_rel) if vin_rel else None),
         "shopPaths": shop_rel,
     })
     job["done"] = 1
@@ -1156,7 +1292,7 @@ def build_zip(dirpath, title):
     """
     zpath = os.path.join(dirpath, f"{safe_name(title or '作品')}.zip")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
-        for sub in ("covers", "players", "keychain", "shop"):
+        for sub in ("covers", "players", "keychain", "vinyl", "shop"):
             d = os.path.join(dirpath, sub)
             if not os.path.isdir(d):
                 continue
@@ -1280,10 +1416,13 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/ping":
                 kc_ok, kc_why = keychain_ready()
                 sh_ok, sh_why = shop_ready()
+                vn_ok, vn_why = vinyl_ready()
                 return self._json({"ok": True, "app": APP_ID, "version": VERSION,
                                    "pid": os.getpid(), "port": self.server.server_port,
                                    "keychain": kc_ok, "keychainWhy": kc_why,
                                    "shop": sh_ok, "shopWhy": sh_why,
+                                   "vinyl": vn_ok, "vinylWhy": vn_why,
+                                   "vinylWidths": list(VINYL_WIDTHS),
                                    "shopPresets": (shop_presets() if sh_ok else [])})
             if p in ("/", "/index.html"):
                 return self._file(os.path.join(HERE, "index.html"))
@@ -1506,16 +1645,26 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         opt[k] = DEFAULTS.get(k, 0)
                 try:
-                    opt["ratio"] = float(opt.get("ratio") or DEFAULTS["ratio"])
-                    opt["played"] = float(opt.get("played") or 0.0)
+                    ratio = float(opt.get("ratio") or DEFAULTS["ratio"])
+                    played = float(opt.get("played") or 0.0)
+                    # ⚠️ json.loads 接受 Infinity / NaN 字面量，float() 不拦。
+                    #    inf 传下去 → 进度条右端算成 inf → 到 PIL 画图那步才炸。
+                    if not (math.isfinite(ratio) and math.isfinite(played)):
+                        raise ValueError("non-finite")
+                    opt["ratio"], opt["played"] = ratio, played
                 except Exception:
                     opt["ratio"], opt["played"] = DEFAULTS["ratio"], 0.0
-                opt["vip"] = bool(opt.get("vip", True))
-                opt["follow"] = bool(opt.get("follow", True))
-                opt["allow_placeholder"] = bool(opt.get("allow_placeholder", False))
-                opt["keychain"] = bool(opt.get("keychain", False))
-                opt["shop"] = bool(opt.get("shop", False))
-                opt["shopGrid"] = bool(opt.get("shopGrid", True))
+                opt["played"] = max(0.0, min(opt["played"], 1.0))
+                # 布尔开关统一走 _as_bool：直接 bool() 会让字符串 "false" 变成 True
+                opt["vip"] = _as_bool(opt.get("vip"), True)
+                opt["follow"] = _as_bool(opt.get("follow"), True)
+                opt["allow_placeholder"] = _as_bool(opt.get("allow_placeholder"), False)
+                opt["keychain"] = _as_bool(opt.get("keychain"), False)
+                opt["shop"] = _as_bool(opt.get("shop"), False)
+                opt["shopGrid"] = _as_bool(opt.get("shopGrid"), True)
+                opt["vinyl"] = _as_bool(opt.get("vinyl"), False)
+                # 宽档位在这里就收敛好，落盘 meta.json 里存的就是干净值
+                opt["vinylWidth"] = vinyl_width(opt)
                 # 画布预设可配置（config/canvas_presets.json），交给 SHOP 收敛，
                 # 这里不再写死白名单 —— 否则用户新增的预设会被当非法值丢掉。
                 opt["shopCanvas"] = (SHOP.parse_canvases(opt["shopCanvas"])
