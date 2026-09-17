@@ -29,8 +29,9 @@
 
 接口一览:
     GET  /                       工作台页面
-    GET  /api/ping               健康检查（含 pid / version / 钥匙扣能力）
+    GET  /api/ping               健康检查（pid / version / 各项能力：钥匙扣·商品图·黑胶·专辑）
     GET  /api/artist?name=&source=   查歌手 + 热门歌曲列表(只查不下载)
+    GET  /api/albums?name=&limit=    查歌手**全部专辑**列表(只查不下载；专辑全集模式用)
     GET  /api/song?name=&source=     查单曲候选（QQ 结果优先，带 QQ 角标）
     GET  /api/state?id=          任务进度 / 结果
     GET  /api/zip?id=            打包下载整组(ZIP)
@@ -119,6 +120,13 @@ try:
 except Exception as _e:                      # pragma: no cover
     VINYL, _VINYL_IMPORT_ERR = None, f"{type(_e).__name__}: {_e}"
 
+# 专辑图（封面母版 + 专辑卡 + 专辑墙）：纯字体依赖；网络部分在函数内延迟 import。
+try:
+    import make_album as ALBUM
+    _ALBUM_IMPORT_ERR = None
+except Exception as _e:                      # pragma: no cover
+    ALBUM, _ALBUM_IMPORT_ERR = None, f"{type(_e).__name__}: {_e}"
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -132,7 +140,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.8.0"   # 1.8.0: 黑胶播放界面接入（1:2 竖图 + 宽度三档 + 黑胶总览）
+VERSION = "1.9.0"   # 1.9.0: 新增「专辑全集」模式（封面母版 + 专辑卡 + 专辑墙）
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -181,6 +189,10 @@ DEFAULTS = {
     "shopGrid": True,          # 商品图是否另出拼版总览
     "vinyl": False,            # 是否同时出「黑胶播放界面」（1:2 竖图）
     "vinylWidth": 1200,        # 黑胶图宽（高 = 2×宽）；900/1200/1500 三档给前端选
+    "albumCard": True,         # 专辑模式：是否出「专辑卡」（每张专辑一张方形卡）
+    "albumWall": True,         # 专辑模式：是否出「专辑墙总览」（全部封面拼版）
+    "albumCardSize": 1500,     # 专辑卡边长；1200/1500/2000 三档给前端选
+    "albumMax": 0,             # 专辑模式：最多取前 N 张（0 = 全部）
 }
 
 JOBS = {}
@@ -213,6 +225,7 @@ def new_job(title, mode, opt=None):
         "done": 0, "total": 0, "phase": "准备中",
         "items": [], "skipped": [], "error": None,
         "overview": None, "keychainOverview": None, "shopGrids": [], "zip": None,
+        "albumWall": None,
         "dir": d,
         "elapsed": 0.0, "t0": t0,
         # 作品库用：任务一建就落盘，哪怕进程中途被杀，磁盘上也有这条记录（状态 running）
@@ -244,6 +257,8 @@ def snap(job):
             d.pop("keychainPath", None)
             d.pop("vinylPath", None)
             d.pop("shopPaths", None)
+            d.pop("albumPath", None)
+            d.pop("cardPath", None)
             items.append(d)
         return {
             "id": job["id"], "title": job["title"], "mode": job["mode"],
@@ -256,6 +271,7 @@ def snap(job):
             "overview": job["overview"],
             "keychainOverview": job.get("keychainOverview"),
             "vinylOverview": job.get("vinylOverview"),
+            "albumWall": job.get("albumWall"),
             "shopGrids": job.get("shopGrids") or [],
             "elapsed": round(job["elapsed"], 1),
         }
@@ -320,6 +336,11 @@ def _meta_of(job):
             "keychain": _rel(job, it.get("keychainPath")),
             "vinyl": _rel(job, it.get("vinylPath")),
             "shop": dict(it.get("shopPaths") or {}),
+            # 专辑模式：一张专辑一张封面母版 + 一张专辑卡
+            "albumCover": _rel(job, it.get("albumPath")),
+            "albumCard": _rel(job, it.get("cardPath")),
+            "date": it.get("date"), "tracks": it.get("tracks"),
+            "type": it.get("type"),
         })
 
     return {
@@ -340,6 +361,7 @@ def _meta_of(job):
         "overview": job.get("overviewFile"),
         "keychainOverview": job.get("keychainOverviewFile"),
         "vinylOverview": job.get("vinylOverviewFile"),
+        "albumWall": job.get("albumWallFile"),
         "shopGrids": list(job.get("shopGrids") or []),
         "counts": {
             "songs": len(items),
@@ -347,6 +369,8 @@ def _meta_of(job):
             "vinyl": sum(1 for i in items if i.get("vinyl")),
             "shop": sum(len(i.get("shop") or {}) for i in items),
             "grids": len(job.get("shopGrids") or []),
+            "albums": sum(1 for i in items if i.get("albumCover")),
+            "albumCards": sum(1 for i in items if i.get("albumCard")),
         },
         "items": items,
     }
@@ -497,7 +521,9 @@ def job_card(m):
 
     thumb = None
     for it in raw:
-        thumb = _asset_url(jid, it.get("cover")) or _asset_url(jid, it.get("player"))
+        thumb = (_asset_url(jid, it.get("cover")) or _asset_url(jid, it.get("player"))
+                 or _asset_url(jid, it.get("albumCover"))
+                 or _asset_url(jid, it.get("albumCard")))
         if thumb:
             break
 
@@ -509,11 +535,15 @@ def job_card(m):
             "artist": it.get("artist"), "album": it.get("album"),
             "dur": it.get("dur"), "comments": it.get("comments"),
             "mm": it.get("mm"),
+            "date": it.get("date"), "tracks": it.get("tracks"),
+            "type": it.get("type"),
             "coverUrl": _asset_url(jid, it.get("cover")),
             "playerUrl": _asset_url(jid, it.get("player")),
             "playerJpgUrl": _asset_url(jid, it.get("playerJpg")),
             "keychainUrl": _asset_url(jid, it.get("keychain")),
             "vinylUrl": _asset_url(jid, it.get("vinyl")),
+            "albumUrl": _asset_url(jid, it.get("albumCover")),
+            "cardUrl": _asset_url(jid, it.get("albumCard")),
             "shopUrls": {str(k): _asset_url(jid, v) for k, v in shop.items()},
         })
 
@@ -535,6 +565,7 @@ def job_card(m):
         "overviewUrl": _asset_url(jid, m.get("overview")),
         "keychainOverviewUrl": _asset_url(jid, m.get("keychainOverview")),
         "vinylOverviewUrl": _asset_url(jid, m.get("vinylOverview")),
+        "albumWallUrl": _asset_url(jid, m.get("albumWall")),
         "shopGrids": [{"label": g.get("label"),
                        "url": _asset_url(jid, g.get("file"))}
                       for g in grids],
@@ -771,6 +802,36 @@ def render_vinyl(job, base, cpath, title, artist, dur_s, opt):
     return os.path.relpath(vpath, job["dir"]), None
 
 
+# ---------------- 专辑图（专辑全集） ----------------
+
+def album_ready():
+    """专辑图能力探测：模块在不在 + 字体能不能加载。"""
+    if ALBUM is None:
+        return False, f"专辑模块不可用（{_ALBUM_IMPORT_ERR}）"
+    return True, None
+
+
+def album_card_size(opt):
+    """专辑卡边长收敛到白名单档位（同 vinyl_width，OverflowError 必须一起 catch）。"""
+    try:
+        n = int(opt.get("albumCardSize"))
+    except (TypeError, ValueError, OverflowError):
+        return int(getattr(ALBUM, "CARD_DEFAULT_SIZE", 1500))
+    sizes = tuple(getattr(ALBUM, "CARD_SIZES", (1200, 1500, 2000)))
+    default = int(getattr(ALBUM, "CARD_DEFAULT_SIZE", 1500))
+    return n if n in sizes else default
+
+
+def album_limit(opt):
+    """最多取前 N 张；0 / 非法 → 全部（0 表示不设上限）。"""
+    try:
+        n = int(float(opt.get("albumMax") or 0))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    if not math.isfinite(float(n)):
+        return 0
+    return max(0, min(n, 400))
+
 
 # ---------------------------------------------------------------- 单首渲染
 
@@ -903,13 +964,16 @@ def _shop_label(shop_rel):
 
 def finish(job, made, ar_name, total_label, src=None):
     """收尾: 生成总览 + ZIP"""
-    if made:
+    tag = {"qq": " · QQ音乐", "163": " · 网易云"}.get(src, "")
+    # ⚠️ 别默认每个 item 都有 playerPath：专辑模式的 item 只有封面/专辑卡，
+    #    没做这层过滤会 KeyError，整个任务在最后一步炸掉（图都出了却报失败）。
+    play_made = [it for it in made if it.get("playerPath")]
+    if play_made:
         job["phase"] = "生成总览"
-        tag = {"qq": " · QQ音乐", "163": " · 网易云"}.get(src, "")
         grid = contact_sheet(
-            [(it["playerPath"], f"{it['rank']:02d} {it['name']}") for it in made],
+            [(it["playerPath"], f"{it['rank']:02d} {it['name']}") for it in play_made],
             os.path.join(job["dir"], "总览.jpg"),
-            cols=min(5, len(made)),      # 不足 5 张时别留空列
+            cols=min(5, len(play_made)),      # 不足 5 张时别留空列
             title=f"{ar_name} · {total_label} · 30×50mm{tag}",
         )
         job["overview"] = url_of(job, os.path.relpath(grid, job["dir"]))
@@ -1282,6 +1346,64 @@ def run_upload(job, opt):
     finish(job, job["items"], title, "30×50mm")
 
 
+def run_album(job, opt):
+    """专辑全集：搜索歌手 → 抓其**全部专辑**（封面母版 + 专辑卡 + 专辑墙）。
+
+    这一模式**不产出播放界面**（item 里没有 playerPath）——
+    finish() 里所有"按 playerPath 出总览"的分支都必须能容忍这一点。
+    """
+    artist = (opt.get("artist") or "").strip()
+    ok, why = album_ready()
+    if not ok:
+        return fail(job, why)
+    log(job, f"搜索歌手：{artist}")
+    job["total"] = 0            # 专辑数要等接口回来才知道
+
+    want_card = bool(opt.get("albumCard", True))
+    want_wall = bool(opt.get("albumWall", True))
+    limit = album_limit(opt)
+    csize = album_card_size(opt)
+
+    def on_item(it):
+        item = {
+            "rank": it["rank"], "name": it["name"], "artist": it["artist"],
+            "album": "", "dur": "", "comments": None,
+            "date": it["date"], "tracks": it["tracks"],
+            "type": it["type"], "company": it["company"],
+            "albumUrl": url_of(job, os.path.relpath(it["albumPath"], job["dir"])),
+            "cardUrl": (url_of(job, os.path.relpath(it["cardPath"], job["dir"]))
+                        if it.get("cardPath") else None),
+            "albumPath": it["albumPath"],
+            "cardPath": it.get("cardPath"),
+        }
+        job["items"].append(item)
+        job["done"] = len(job["items"])
+
+    def lg(msg, level="info"):
+        log(job, msg, "warn" if level == "warn" else ("err" if level == "err"
+                                                      else ("ok" if level == "ok" else "info")))
+
+    job["phase"] = "抓取专辑列表"
+    log(job, "正在拉取专辑列表…（网易云偶发限流，可能要等十几秒）")
+    try:
+        res = ALBUM.build_all(artist, job["dir"], card=want_card, wall=want_wall,
+                              card_size=csize, limit=limit, log=lg, on_item=on_item)
+    except Exception as e:
+        log(job, traceback.format_exc()[-900:], "err")
+        return fail(job, f"{type(e).__name__}: {e}")
+
+    if not res.get("ok"):
+        return fail(job, f"没有拿到「{artist}」的专辑：{res.get('error')}")
+
+    job["total"] = len(job["items"])
+    job["done"] = len(job["items"])
+    job["title"] = f"{res.get('artist') or artist} · 专辑全集"
+    if res.get("wall"):
+        job["albumWall"] = url_of(job, os.path.relpath(res["wall"], job["dir"]))
+        job["albumWallFile"] = _rel(job, res["wall"])
+    finish(job, job["items"], res.get("artist") or artist, "专辑全集", "163")
+
+
 # ---------------------------------------------------------------- 打包
 
 def build_zip(dirpath, title):
@@ -1292,7 +1414,8 @@ def build_zip(dirpath, title):
     """
     zpath = os.path.join(dirpath, f"{safe_name(title or '作品')}.zip")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
-        for sub in ("covers", "players", "keychain", "vinyl", "shop"):
+        for sub in ("covers", "players", "keychain", "vinyl", "shop",
+                    "albums", "album_cards"):
             d = os.path.join(dirpath, sub)
             if not os.path.isdir(d):
                 continue
@@ -1304,6 +1427,11 @@ def build_zip(dirpath, title):
         for f in sorted(os.listdir(dirpath)):
             if f.startswith("总览") and f.lower().endswith((".jpg", ".png")):
                 z.write(os.path.join(dirpath, f), f)
+        # 专辑模式：albums.json 是专辑清单（含日期/曲目数/类别），
+        # 带上它才能离线用 `make_album.py --batch` 重出，别漏。
+        aj = os.path.join(dirpath, "albums.json")
+        if os.path.exists(aj):
+            z.write(aj, "albums.json")
     return zpath
 
 
@@ -1417,12 +1545,17 @@ class Handler(BaseHTTPRequestHandler):
                 kc_ok, kc_why = keychain_ready()
                 sh_ok, sh_why = shop_ready()
                 vn_ok, vn_why = vinyl_ready()
+                ab_ok, ab_why = album_ready()
                 return self._json({"ok": True, "app": APP_ID, "version": VERSION,
                                    "pid": os.getpid(), "port": self.server.server_port,
                                    "keychain": kc_ok, "keychainWhy": kc_why,
                                    "shop": sh_ok, "shopWhy": sh_why,
                                    "vinyl": vn_ok, "vinylWhy": vn_why,
                                    "vinylWidths": list(VINYL_WIDTHS),
+                                   "album": ab_ok, "albumWhy": ab_why,
+                                   "albumSizes": list(getattr(ALBUM, "CARD_SIZES",
+                                                              (1200, 1500, 2000)))
+                                                  if ab_ok else [],
                                    "shopPresets": (shop_presets() if sh_ok else [])})
             if p in ("/", "/index.html"):
                 return self._file(os.path.join(HERE, "index.html"))
@@ -1480,6 +1613,37 @@ class Handler(BaseHTTPRequestHandler):
                         "id": s["id"], "name": s["name"], "artist": s["artists"],
                         "album": s["album"], "dur": fmt_dur(s["dur_ms"]),
                     } for s in pool],
+                })
+
+            if p == "/api/albums":
+                # 专辑全集的「查询」：只拉列表给用户确认，不下载、不出图。
+                name = (q.get("name") or [""])[0].strip()
+                if not name:
+                    return self._json({"error": "缺少歌手名"}, 400)
+                ab_ok, ab_why = album_ready()
+                if not ab_ok:
+                    return self._json({"error": ab_why}, 503)
+                try:
+                    limit = album_limit({"albumMax": (q.get("limit") or ["0"])[0]})
+                except Exception:
+                    limit = 0
+                try:
+                    ar, albs = ALBUM.plan_albums(name, limit)
+                except Exception as e:
+                    slog("ERROR", f"albums/{name}: {type(e).__name__}: {e}")
+                    return self._json({"error": f"查询失败：{type(e).__name__}: {e}"}, 502)
+                if not ar:
+                    return self._json({"error": f"没搜到歌手「{name}」"}, 404)
+                if not albs:
+                    return self._json({"error": f"「{ar['name']}」没有可用的专辑封面"}, 404)
+                return self._json({
+                    "artist": {"id": ar.get("id"), "name": ar.get("name")},
+                    "count": len(albs),
+                    "albums": [{
+                        "name": a["name"], "date": a["date"],
+                        "tracks": a["tracks"], "type": a["type"],
+                        "company": a["company"], "pic": a["pic"],
+                    } for a in albs],
                 })
 
             if p == "/api/song":
@@ -1665,6 +1829,11 @@ class Handler(BaseHTTPRequestHandler):
                 opt["vinyl"] = _as_bool(opt.get("vinyl"), False)
                 # 宽档位在这里就收敛好，落盘 meta.json 里存的就是干净值
                 opt["vinylWidth"] = vinyl_width(opt)
+                # 专辑模式（v1.9.0）
+                opt["albumCard"] = _as_bool(opt.get("albumCard"), True)
+                opt["albumWall"] = _as_bool(opt.get("albumWall"), True)
+                opt["albumCardSize"] = album_card_size(opt)
+                opt["albumMax"] = album_limit(opt)
                 # 画布预设可配置（config/canvas_presets.json），交给 SHOP 收敛，
                 # 这里不再写死白名单 —— 否则用户新增的预设会被当非法值丢掉。
                 opt["shopCanvas"] = (SHOP.parse_canvases(opt["shopCanvas"])
@@ -1675,13 +1844,14 @@ class Handler(BaseHTTPRequestHandler):
                 opt["width"] = max(600, min(opt["width"] or 1181, 4000))
 
                 titles = {"artist": f"{opt.get('artist', '')}",
+                          "album": f"{opt.get('artist', '')} · 专辑全集",
                           "song": f"{opt.get('song', '')}",
                           "upload": f"{opt.get('title') or '自定义'}"}
                 job = new_job(titles.get(mode, "任务"), mode, opt)
                 job["shopGrid"] = opt["shopGrid"]   # finish() 收尾时按它决定要不要拼版
 
                 runner = {"artist": run_artist, "song": run_song,
-                          "upload": run_upload}.get(mode)
+                          "upload": run_upload, "album": run_album}.get(mode)
                 if not runner:
                     fail(job, f"未知模式：{mode}")
                     return self._json(snap(job))

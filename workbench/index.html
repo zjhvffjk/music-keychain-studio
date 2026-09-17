@@ -155,6 +155,12 @@ details.adv summary:hover{color:var(--fg2)}
 .kctog.off{opacity:.6}
 .kctog.off .kchint{color:#b3261e}
 
+/* 专辑模式不产播放界面 → 三个播放界面相关的开关（钥匙扣/商品图/黑胶）与它无关，
+   勾了也不会多出图。藏掉，别让用户以为有用。 */
+body.mode-album #kcBox,
+body.mode-album #shopBox,
+body.mode-album #vinylBox{display:none}
+
 /* 商品图开关的二级选项（画布 / 底色 / 拼版）：主开关没勾时收起来，别占地方 */
 .kcopts{display:none;padding:1px 0 0}
 .kctog.on .kcopts{display:block}
@@ -291,6 +297,11 @@ details.adv summary:hover{color:var(--fg2)}
 .shots .sh.cv img{aspect-ratio:1/1;object-fit:cover}
 .shots .sh.kc img{aspect-ratio:1/1;object-fit:cover}
 .shots .sh.kc .cap{background:rgba(17,97,60,.78)}
+/* 专辑模式：只有「封面母版 + 专辑卡」两张 1:1 方图，等宽平分即可
+   （套 .cv/.pl/.kc 那套 26% / flex / 32% 的比例会留一大块空） */
+.shots.alb .sh{flex:1}
+.shots.alb .sh img{aspect-ratio:1/1;object-fit:cover}
+.shots.alb .sh.card .cap{background:rgba(120,60,140,.78)}
 .shots .cap{position:absolute;left:7px;bottom:6px;font-size:9.5px;color:#cfd4e0;
   background:rgba(0,0,0,.62);padding:2px 7px;border-radius:20px;letter-spacing:.3px;
   backdrop-filter:blur(4px);pointer-events:none}
@@ -414,6 +425,7 @@ details.adv summary:hover{color:var(--fg2)}
     <div class="side-body" data-page-node-id="WpJ6Z6VmjtDHN9g5U45AKR">
       <div class="tabs" data-page-node-id="zjZLishYm1QDxDGAwcPHVX">
         <button data-m="artist" class="on" data-page-node-id="K57GPO7tK79MOdA0Lzt03R">歌手热门</button>
+        <button data-m="album" data-page-node-id="AlbTab0Xq7Lm2NvB4tRwZ">专辑全集</button>
         <button data-m="song" data-page-node-id="yclsMGyAev4zrb37YyrOfP">单曲指定</button>
         <button data-m="upload" data-page-node-id="xYXpixd5MXWJZKTDhWFlF6">上传封面</button>
       </div>
@@ -447,9 +459,49 @@ details.adv summary:hover{color:var(--fg2)}
         </div>
       </div>
 
+      <!-- 专辑全集 -->
+      <div class="pane" id="p-album" data-page-node-id="AlbPane0Xq7Lm2NvB4tRw">
+        <div class="fld" data-page-node-id="AlbFld0Xq7Lm2NvB4tRwZ">
+          <div class="lbl" data-page-node-id="AlbLbl0Xq7Lm2NvB4tRwZ">歌手名 <em data-page-node-id="AlbEm0Xq7Lm2NvB4tRwZ">抓该歌手<b>全部</b>专辑（含单曲 / EP / 演唱会 Live）</em></div>
+          <div class="row" data-page-node-id="AlbRow0Xq7Lm2NvB4tRwZ">
+            <input type="text" id="albumArtist" placeholder="例：周杰伦" data-page-node-id="AlbIn0Xq7Lm2NvB4tRwZ">
+            <button class="btn" id="btnQueryAlbum" data-page-node-id="AlbBtn0Xq7Lm2NvB4tRwZ">查询</button>
+          </div>
+        </div>
+        <div id="albumBox" data-page-node-id="AlbBox0Xq7Lm2NvB4tRwZ"></div>
+        <div class="kctog" id="albumOptBox" data-page-node-id="AlbOpt0Xq7Lm2NvB4tRwZ">
+          <div class="sw" data-page-node-id="AlbSw0Xq7Lm2NvB4tRwZ">
+            <span data-page-node-id="AlbSw1Xq7Lm2NvB4tRwZ">
+              <b data-page-node-id="AlbSw2Xq7Lm2NvB4tRwZ">每张专辑出一张专辑卡</b>
+              <em data-page-node-id="AlbSw3Xq7Lm2NvB4tRwZ">方形卡：大封面 + 专辑名 + 日期·曲目数</em>
+            </span>
+            <input type="checkbox" id="p_albumCard" checked data-page-node-id="AlbSw4Xq7Lm2NvB4tRwZ">
+          </div>
+          <div class="kcopts" id="albumCardOpts" data-page-node-id="AlbOpt1Xq7Lm2NvB4tRwZ">
+            <div class="optrow" data-page-node-id="AlbOpt2Xq7Lm2NvB4tRwZ">
+              <span class="olbl" data-page-node-id="AlbOpt3Xq7Lm2NvB4tRwZ">卡片边长</span>
+              <!-- 档位由 JS 按后端 albumSizes 渲染，前端不写死 -->
+              <div class="chips" id="albumSizeChips" data-page-node-id="AlbOpt4Xq7Lm2NvB4tRwZ"></div>
+            </div>
+          </div>
+        </div>
+        <div class="kctog" id="albumWallBox" data-page-node-id="AlbWall0Xq7Lm2NvB4tRwZ">
+          <div class="sw" data-page-node-id="AlbWall1Xq7Lm2NvB4tRwZ">
+            <span data-page-node-id="AlbWall2Xq7Lm2NvB4tRwZ">
+              <b data-page-node-id="AlbWall3Xq7Lm2NvB4tRwZ">出专辑墙总览</b>
+              <em data-page-node-id="AlbWall4Xq7Lm2NvB4tRwZ">全部专辑封面拼成一面墙，每格标专辑名 + 日期·曲目数</em>
+            </span>
+            <input type="checkbox" id="p_albumWall" checked data-page-node-id="AlbWall5Xq7Lm2NvB4tRwZ">
+          </div>
+        </div>
+        <div class="kchint" data-page-node-id="AlbHint0Xq7Lm2NvB4tRwZ">
+          一次抓完全部专辑：每张出一份<b>封面母版原图</b>，可选再出<b>专辑卡</b>与<b>专辑墙</b>。
+          数据源为网易云（专辑列表不受版权影响，周杰伦这类也可拿到全量）。
+        </div>
+      </div>
+
       <!-- 单曲 -->
-      <div class="pane" id="p-song" data-page-node-id="F300gSKyyCohBAzBWvzY7C">
-        <div class="fld" data-page-node-id="jnMoBCVpGreAVuHHD1GG96">
+      <div class="pane" id="p-song" data-page-node-id="F300gSKyyCohBAzBWvzY7C">        <div class="fld" data-page-node-id="jnMoBCVpGreAVuHHD1GG96">
           <div class="lbl" data-page-node-id="3feGjLsRlH6Rne5ws02XIz">歌名 <em data-page-node-id="Fgl4IehjtZ2yRfwKSuW5ih">可带歌手名提高准确度</em></div>
           <div class="row" data-page-node-id="yoRVDQq1IA00Prdg7uzCuw">
             <input type="text" id="songKw" placeholder="例：如果呢 郑润泽" data-page-node-id="fjxIIFvXdRB4ixQXQhLPKD">
@@ -617,6 +669,7 @@ details.adv summary:hover{color:var(--fg2)}
           左侧选「歌手热门」查一位歌手，确认后取热门前 N 首<br data-page-node-id="BMB2AEZ0AYBpymvhkXRNra">
           每首会出两张图：<b data-page-node-id="v8HAJCplo339Kbj62R7jE6">1000×1000 正方形封面母版</b> + <b data-page-node-id="fYIKeSYhGgrKQbFMICSYMi">30×50mm 播放界面</b><br data-page-node-id="rQGJUH93n8v9vRXZwwIFwI">
           素材直接取自网易云 CDN 母版，不是手机截图<br data-page-node-id="KcEmpty0Xq7Lm2NvB4tRwZs">
+          选「专辑全集」则抓该歌手<b data-page-node-id="AlbEmpty0Xq7Lm2NvB4tRw">全部专辑</b>：封面母版 + 专辑卡 + 专辑墙总览<br data-page-node-id="AlbEmpty1Xq7Lm2NvB4tRw">
           勾选上面的「同时出钥匙扣商品图」，每首再多一张 <b data-page-node-id="KcEmpty1Dk9Wz3QmNr6sVbXp">1920×1920 钥匙扣实物效果图</b><br data-page-node-id="ShopEmpty0Xq7Lm2NvB4tRw">
           勾选「同时出白底商品图」，每首再出 <b data-page-node-id="ShopEmpty1Dk9Wz3QmNr6sVb">纯白底 / 透明底的商品图</b>（画布种类在下方选择，可多选），并附拼版总览
         </p>
@@ -772,6 +825,10 @@ const SHOP_TAG   = {};       // 变体键 -> 展示名
 /* 黑胶画布宽（高 = 宽×2）。档位是白名单，后端也会再收敛一次。 */
 let VINYL_W = 1200;
 
+/* 专辑卡边长。档位同样来自后端（albumSizes）。 */
+let ALBUM_SIZE  = 1500;
+let ALBUM_FOUND = null;   // 查询到的 {artist, count} —— 给提交时做提示用
+
 /* ---------------- 小工具 ---------------- */
 let toastT;
 function toast(msg){
@@ -858,6 +915,9 @@ $$('.tabs button').forEach(b=>{
     $$('.tabs button').forEach(x=>x.classList.toggle('on', x===b));
     MODE = b.dataset.m;
     $$('.pane').forEach(p=>p.classList.toggle('on', p.id === 'p-'+MODE));
+    /* 专辑模式不产播放界面，所以「钥匙扣 / 白底商品图 / 黑胶」三个开关与它无关。
+       留着会让用户以为勾了能多出图 —— 直接藏掉。 */
+    document.body.classList.toggle('mode-album', MODE === 'album');
   };
 });
 
@@ -959,6 +1019,64 @@ function bindVinylChips(){
   });
 }
 bindVinylChips();
+
+/* ---------------- 专辑全集 ---------------- */
+$('#p_albumCard').onchange = e =>{
+  document.getElementById('albumOptBox').classList.toggle('on', e.target.checked);
+};
+/* 默认勾选 → 档位一开始就展开（和主开关状态保持一致） */
+document.getElementById('albumOptBox').classList.add('on');
+
+/* 卡片边档位同样来自后端（albumSizes）。 */
+function initAlbumSizes(){
+  const box = $('#albumSizeChips');
+  if(!box) return;
+  const ws = (BACKEND.info && BACKEND.info.albumSizes) || [];
+  const list = ws.length ? ws : [1200, 1500, 2000];
+  if(!list.includes(ALBUM_SIZE)) ALBUM_SIZE = list.includes(1500) ? 1500 : list[0];
+  box.innerHTML = list.map(w=>
+    `<button data-w="${esc(String(w))}">${esc(String(w))}</button>`).join('');
+  box.querySelectorAll('button').forEach(b=>{
+    b.classList.toggle('on', parseInt(b.dataset.w,10) === ALBUM_SIZE);
+    b.onclick = ()=>{
+      box.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
+      ALBUM_SIZE = parseInt(b.dataset.w,10) || 1500;
+    };
+  });
+}
+
+$('#btnQueryAlbum').onclick = async ()=>{
+  const name = $('#albumArtist').value.trim();
+  if(!name) return toast('先填歌手名');
+  const btn = $('#btnQueryAlbum');
+  btn.disabled = true; btn.textContent = '查询中';
+  ALBUM_FOUND = null;
+  try{
+    const d = await jget('/api/albums?name='+encodeURIComponent(name));
+    ALBUM_FOUND = {artist: d.artist.name, count: d.count};
+    const rows = (d.albums||[]).map((a,i)=>`
+      <div class="srow">
+        <span class="i">${String(i+1).padStart(2,'0')}</span>
+        <span class="t" title="${esc(a.name)}">${esc(a.name)}</span>
+        <span class="a">${esc(a.type||'')}</span>
+        <span class="d">${esc(a.date||'')} · ${esc(String(a.tracks||''))}首</span>
+      </div>`).join('');
+    $('#albumBox').innerHTML = `
+      <div class="acard">
+        <div style="width:46px;height:46px;border-radius:8px;background:#e8eaee;flex:none"></div>
+        <div style="min-width:0">
+          <div class="nm">${esc(d.artist.name)}<em class="src">网易云</em></div>
+          <div class="sub">共 ${d.count} 张专辑（含单曲 / EP / 演唱会）</div>
+        </div>
+      </div>
+      <div class="slist">${rows}</div>`;
+    toast(`找到 ${d.artist.name}，共 ${d.count} 张专辑`);
+  }catch(e){ toast(e.message); $('#albumBox').innerHTML=''; }
+  finally{ btn.disabled = false; btn.textContent = '查询'; }
+};
+$('#albumArtist').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') $('#btnQueryAlbum').click();
+});
 
 /* ---------------- 查询歌手 ---------------- */
 $('#btnQueryArtist').onclick = async ()=>{
@@ -1112,6 +1230,13 @@ function collect(){
     vinylWidth: VINYL_W
   };
   if(MODE === 'artist'){ o.artist = $('#artistName').value.trim(); o.top = TOP; o.source = SRC; }
+  else if(MODE === 'album'){
+    o.artist = $('#albumArtist').value.trim();
+    o.albumCard = $('#p_albumCard').checked;
+    o.albumWall = $('#p_albumWall').checked;
+    o.albumCardSize = ALBUM_SIZE;
+    o.albumMax = 0;              // 0 = 全部专辑
+  }
   else if(MODE === 'song'){
     o.song = $('#songKw').value.trim();
     o.pick = PICK || 0;
@@ -1134,6 +1259,7 @@ function collect(){
 $('#btnGo').onclick = async ()=>{
   const o = collect();
   if(MODE === 'artist' && !o.artist) return toast('先填歌手名');
+  if(MODE === 'album'  && !o.artist) return toast('先填歌手名');
   if(MODE === 'song'   && !o.song)   return toast('先填歌名');
   if(MODE === 'upload' && !o.upload) return toast('先上传一张封面图');
 
@@ -1173,7 +1299,9 @@ async function poll(){
       if(d.status === 'done'){
         $('#btnZip').disabled = !d.items.length;
         $('#btnOpen').disabled = false;
-        toast(`完成，共 ${d.items.length} 首`);
+        toast(d.mode === 'album'
+              ? `完成，共 ${d.items.length} 张专辑`
+              : `完成，共 ${d.items.length} 首`);
       }
     }
   }catch(e){
@@ -1243,6 +1371,38 @@ function vinylStrip(it){
     </div>`;
 }
 
+/* 专辑模式：每张专辑一张卡（封面母版 + 专辑卡，都是 1:1）。
+   和歌曲卡结构不同（没有播放界面/时长/评论），所以单独一套渲染。 */
+function albumItem(it){
+  const meta = [it.date, (it.tracks ? it.tracks + ' 首' : ''), it.type]
+    .filter(Boolean).join(' · ');
+  return `
+      <div class="item">
+        <div class="top">
+          <div class="rk">${String(it.rank).padStart(2,'0')}</div>
+          <div class="t1">
+            <div class="n" title="${esc(it.name)}">${esc(it.name)}</div>
+            <div class="s">${esc(meta)}</div>
+          </div>
+        </div>
+        <div class="shots alb">
+          <div class="sh" onclick="zoom('${jsq(asset(it.albumUrl))}','${jsq(it.name)} 封面母版')">
+            <img src="${esc(asset(it.albumUrl))}" alt="" loading="lazy">
+            <span class="cap">封面母版</span>
+          </div>${it.cardUrl ? `
+          <div class="sh card" onclick="zoom('${jsq(asset(it.cardUrl))}','${jsq(it.name)} 专辑卡')">
+            <img src="${esc(asset(it.cardUrl))}" alt="" loading="lazy">
+            <span class="cap">专辑卡</span>
+          </div>` : ''}
+        </div>
+        <div class="ft">
+          <span class="mm">${esc(it.company||'')}</span>
+          <a class="mini" href="${esc(asset(it.albumUrl))}?dl=1">封面母版</a>${it.cardUrl ?
+          `\n          <a class="mini" href="${esc(asset(it.cardUrl))}?dl=1">专辑卡</a>` : ''}
+        </div>
+      </div>`;
+}
+
 function paint(d){
   const box = $('#content');
   let html = '';
@@ -1295,8 +1455,21 @@ function paint(d){
     </div>`;
   }
 
+  if(d.albumWall){
+    html += `<div style="margin-bottom:18px;border:1px solid var(--line);border-radius:12px;
+      overflow:hidden;background:#fbfbfc">
+      <div style="padding:9px 14px;font-size:11.5px;color:var(--dim);
+        border-bottom:1px solid var(--line)">专辑墙总览 · 全部专辑</div>
+      <img src="${esc(asset(d.albumWall))}" style="width:100%;display:block;cursor:zoom-in"
+           onclick="zoom('${jsq(asset(d.albumWall))}','专辑墙总览')">
+    </div>`;
+  }
+
   if(d.items && d.items.length){
-    html += '<div class="grid">' + d.items.map(it=>`
+    if(d.mode === 'album'){
+      html += '<div class="grid">' + d.items.map(albumItem).join('') + '</div>';
+    }else{
+      html += '<div class="grid">' + d.items.map(it=>`
       <div class="item">
         <div class="top">
           <div class="rk">${String(it.rank).padStart(2,'0')}</div>
@@ -1328,6 +1501,7 @@ function paint(d){
           `\n          <a class="mini" href="${esc(asset(it.vinylUrl))}?dl=1">黑胶</a>` : ''}${shopLinks(it)}
         </div>
       </div>`).join('') + '</div>';
+    }
   }else if(d.status === 'running'){
     html += `<div class="empty"><div class="big">◌</div>
       <h3>正在抓取与合成</h3><p>${esc(d.phase||'')}</p></div>`;
@@ -1419,6 +1593,7 @@ function libDetail(j){
   if(j.overviewUrl) over.push(['整组总览', j.overviewUrl]);
   if(j.keychainOverviewUrl) over.push(['钥匙扣总览', j.keychainOverviewUrl]);
   if(j.vinylOverviewUrl) over.push(['黑胶总览', j.vinylOverviewUrl]);
+  if(j.albumWallUrl) over.push(['专辑墙总览', j.albumWallUrl]);
   (j.shopGrids || []).forEach(g => { if(g.url) over.push([g.label || '商品图总览', g.url]); });
   if(over.length){
     h += '<div class="dt">总览图</div><div class="ims">' + over.map(([cap,u]) =>
@@ -1429,7 +1604,7 @@ function libDetail(j){
   if(!j.items.length){
     h += '<div class="dt">这个任务没有产出图片（可能中途失败或被中止）。</div>';
   }else{
-    h += '<div class="dt" style="margin-top:12px">逐首下载</div>';
+    h += `<div class="dt" style="margin-top:12px">逐${j.mode === 'album' ? '张' : '首'}下载</div>`;
     h += j.items.map(it=>{
       const links = [];
       if(it.coverUrl) links.push(['封面', it.coverUrl]);
@@ -1437,15 +1612,21 @@ function libDetail(j){
       if(it.playerUrl) links.push(['播放图PNG', it.playerUrl]);
       if(it.keychainUrl) links.push(['钥匙扣', it.keychainUrl]);
       if(it.vinylUrl) links.push(['黑胶', it.vinylUrl]);
+      if(it.albumUrl) links.push(['封面母版', it.albumUrl]);
+      if(it.cardUrl) links.push(['专辑卡', it.cardUrl]);
       Object.keys(it.shopUrls || {}).forEach(k=>{
         if(!it.shopUrls[k]) return;
         // 展示名尽量用界面上那套中文（SHOP_TAG 由 /api/ping 下发的画布预设生成）；
         // 历史作品可能用的是后来改过名的画布，取不到就退回可读的英文键。
         links.push([SHOP_TAG[k] || k.replace(/_/g,'·'), it.shopUrls[k]]);
       });
+      // 歌曲卡显示「歌手 · 时长」，专辑卡显示「歌手 · 日期 · N首」
+      const sub = (j.mode === 'album')
+        ? [it.artist, it.date, (it.tracks ? it.tracks + ' 首' : '')].filter(Boolean).join(' · ')
+        : [it.artist, it.dur || ''].filter(Boolean).join(' · ');
       return `<div class="itm">
         <div class="n">${String(it.rank).padStart(2,'0')} ${esc(it.name)}
-          <span style="font-weight:400;color:var(--dim)"> · ${esc(it.artist)} · ${esc(it.dur||'')}</span></div>
+          <span style="font-weight:400;color:var(--dim)"> · ${esc(sub)}</span></div>
         <div class="lk">${links.map(([t,u]) =>
           `<a class="mini" href="${esc(asset(u))}?dl=1">${esc(t)}</a>`).join('')}</div>
       </div>`;
@@ -1457,13 +1638,18 @@ function libDetail(j){
 function libRow(j){
   const c = j.counts || {};
   const bits = [];
-  bits.push(`${c.songs || 0} 首`);
-  if(c.keychain) bits.push(`钥匙扣 ${c.keychain}`);
-  if(c.vinyl) bits.push(`黑胶 ${c.vinyl}`);
-  if(c.shop) bits.push(`商品图 ${c.shop}`);
-  if(c.grids) bits.push(`拼版 ${c.grids}`);
+  if(j.mode === 'album'){
+    bits.push(`${c.albums || c.songs || 0} 张专辑`);
+    if(c.albumCards) bits.push(`专辑卡 ${c.albumCards}`);
+  }else{
+    bits.push(`${c.songs || 0} 首`);
+    if(c.keychain) bits.push(`钥匙扣 ${c.keychain}`);
+    if(c.vinyl) bits.push(`黑胶 ${c.vinyl}`);
+    if(c.shop) bits.push(`商品图 ${c.shop}`);
+    if(c.grids) bits.push(`拼版 ${c.grids}`);
+  }
   const srcTag = j.source ? ` · ${j.source === 'qq' ? 'QQ音乐' : '网易云'}` : '';
-  const modeTag = {artist:'歌手热门', song:'单曲指定', upload:'上传封面'}[j.mode] || j.mode || '';
+  const modeTag = {artist:'歌手热门', album:'专辑全集', song:'单曲指定', upload:'上传封面'}[j.mode] || j.mode || '';
   return `<div class="librow" id="lib-${esc(j.id)}">
     <div class="hd">
       <div class="th" ${j.thumb ? `onclick="zoom('${jsq(asset(j.thumb))}','${jsq(j.title)}')"` : ''}>
@@ -1533,8 +1719,8 @@ async function libDel(id){
   const j = LIB_JOBS.find(x=>x.id === id) || {};
   // 删除会把 outputs/工作台/<id>/ 整个目录删掉，不可恢复 —— 必须二次确认，
   // 并且把"要删的是哪一条"写进确认框，避免点错行删错东西。
-  const n = (j.counts && j.counts.songs) || 0;
-  if(!confirm(`确定删除这条作品吗？\n\n${j.title || id}\n${n} 首 · 图片文件会被一起删除，无法恢复。`))
+  const n = (j.counts && (j.mode === 'album' ? j.counts.albums : j.counts.songs)) || 0;
+  if(!confirm(`确定删除这条作品吗？\n\n${j.title || id}\n${n} ${j.mode === 'album' ? '张专辑' : '首'} · 图片文件会被一起删除，无法恢复。`))
     return;
   try{
     await jpost('/api/jobs/delete', {id});
@@ -1607,12 +1793,22 @@ $('.brand h1').ondblclick = ()=> showConn(true);
   // 预设清单来自 ping，必须等探测完成后再初始化画布按钮
   initShopPresets();
   initVinylWidths();
+  initAlbumSizes();
   // 黑胶只有字体依赖，正常情况都可用了；万一后端 import 失败，别让开关假装能用
   if(info.vinyl === false){
     const box = $('#p_vinyl');
     box.disabled = true; box.checked = false;
     document.getElementById('vinylBox').className = 'kctog off';
     $('#vinylHint').textContent = '当前不可用：' + (info.vinylWhy || '模块未就绪');
+  }
+  // 专辑模块同理：不可用时把「查询」按钮与产出开关一起禁用，别让用户点了才报错
+  if(info.album === false){
+    const b = $('#btnQueryAlbum');
+    if(b){ b.disabled = true; b.textContent = '不可用'; }
+    ['#p_albumCard', '#p_albumWall'].forEach(s=>{
+      const el = $(s); if(el){ el.disabled = true; }
+    });
+    toast('专辑模块不可用：' + (info.albumWhy || '模块未就绪'));
   }
 })();
 </script>
