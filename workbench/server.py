@@ -43,6 +43,7 @@
 import io
 import json
 import os
+import shutil
 import socket
 import sys
 import threading
@@ -120,7 +121,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.6.0"   # 1.6.0: 商品图画布预设可配置（config/canvas_presets.json，支持多选）
+VERSION = "1.7.0"   # 1.7.0: 作品库地基（任务元数据 meta.json 落盘 + /api/jobs 列表/删除/重下）
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -187,11 +188,12 @@ MIME = {
 
 # ---------------------------------------------------------------- 任务管理
 
-def new_job(title, mode):
+def new_job(title, mode, opt=None):
     jid = uuid.uuid4().hex[:10]
     d = os.path.join(OUT_ROOT, jid)
     os.makedirs(os.path.join(d, "covers"), exist_ok=True)
     os.makedirs(os.path.join(d, "players"), exist_ok=True)
+    t0 = time.time()
     job = {
         "id": jid, "title": title, "mode": mode,
         "status": "running", "log": [],
@@ -199,10 +201,14 @@ def new_job(title, mode):
         "items": [], "skipped": [], "error": None,
         "overview": None, "keychainOverview": None, "shopGrids": [], "zip": None,
         "dir": d,
-        "elapsed": 0.0, "t0": time.time(),
+        "elapsed": 0.0, "t0": t0,
+        # 作品库用：任务一建就落盘，哪怕进程中途被杀，磁盘上也有这条记录（状态 running）
+        "created": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t0)),
+        "opt": dict(opt or {}),
     }
     with LOCK:
         JOBS[jid] = job
+    save_meta(job)          # 先落一条"进行中"，重启后至少能看到任务存在过
     return job
 
 
@@ -221,6 +227,7 @@ def snap(job):
         for it in job["items"]:
             d = dict(it)
             d.pop("playerPath", None)      # 内部字段：本机绝对路径，不下发
+            d.pop("coverPath", None)
             d.pop("keychainPath", None)
             d.pop("shopPaths", None)
             items.append(d)
@@ -250,6 +257,249 @@ def url_of(job, rel):
         return None
     rel = rel.replace("\\", "/")
     return f"/assets/{job['id']}/{quote(rel)}"
+
+
+# ---------------------------------------------------------------- 作品库元数据
+#
+# JOBS 是**进程内存**里的表，进程一重启就全没了（前端刷新后 /api/state 直接 404）。
+# 但 outputs/工作台/<id>/ 里的图是实打实留在磁盘上的 —— 之前这些成果没有任何索引，
+# 用户重开工作台就"找不到上次做的东西"了。
+# meta.json 就是给这些目录补一份自描述索引：一个目录 = 一条作品记录，
+# 不依赖进程内存，重启后依然能列出、回看、重下。
+
+META_NAME = "meta.json"
+META_SCHEMA = 1
+
+
+def _rel(job, p):
+    """路径 → 任务目录内的相对 posix 路径。
+
+    元数据里只存相对路径：`outputs/工作台/<id>/` 整个目录可以搬走/改名/打包给
+    别人，索引依然有效；存绝对路径的话换个盘符、换个用户就全废了。
+    """
+    if not p:
+        return None
+    p = str(p)
+    if not os.path.isabs(p):
+        return p.replace("\\", "/")
+    try:
+        return os.path.relpath(p, job["dir"]).replace("\\", "/")
+    except Exception:
+        return None
+
+
+def _meta_of(job):
+    """从内存任务对象抽出可持久化的元数据（**调用方需持有 LOCK**）。"""
+    items = []
+    for it in job.get("items", []):
+        player = _rel(job, it.get("playerPath"))
+        items.append({
+            "rank": it.get("rank"), "name": it.get("name"),
+            "artist": it.get("artist"), "album": it.get("album"),
+            "dur": it.get("dur"), "comments": it.get("comments"),
+            "mm": it.get("mm"),
+            "cover": _rel(job, it.get("coverPath")),
+            "player": player,
+            # 播放界面同时存了 png 与 jpg（同名不同后缀），不必再占一个字段
+            "playerJpg": (os.path.splitext(player)[0] + ".jpg") if player else None,
+            "keychain": _rel(job, it.get("keychainPath")),
+            "shop": dict(it.get("shopPaths") or {}),
+        })
+
+    return {
+        "schema": META_SCHEMA,
+        "id": job["id"],
+        "title": job["title"],
+        "mode": job["mode"],
+        "status": job["status"],
+        "phase": job.get("phase"),
+        "error": job.get("error"),
+        "created": job.get("created"),
+        "createdTs": job.get("t0"),
+        "elapsed": round(job.get("elapsed") or 0.0, 1),
+        "total": job.get("total"), "done": job.get("done"),
+        "artist": job.get("artist"), "source": job.get("source"),
+        "skipped": list(job.get("skipped") or []),
+        "opt": job.get("opt") or {},
+        "overview": job.get("overviewFile"),
+        "keychainOverview": job.get("keychainOverviewFile"),
+        "shopGrids": list(job.get("shopGrids") or []),
+        "counts": {
+            "songs": len(items),
+            "keychain": sum(1 for i in items if i.get("keychain")),
+            "shop": sum(len(i.get("shop") or {}) for i in items),
+            "grids": len(job.get("shopGrids") or []),
+        },
+        "items": items,
+    }
+
+
+def save_meta(job):
+    """把任务元数据写成 <任务目录>/meta.json。
+
+    ⚠️ 三层保险，绝不能让它拖累出图主流程（元数据是附属品，写失败不该让任务失败）：
+      1) 整个函数吞异常，只记一条 warn；
+      2) 先写 .tmp 再 os.replace —— 原子替换。否则用户强杀/断电会留下半个 JSON，
+         下次 json.load 直接炸，一条脏数据能把整个作品库列表带崩；
+      3) 取 job 数据与写盘各自持有 LOCK 的**短临界区**，不长时间占锁。
+    """
+    try:
+        with LOCK:
+            data = _meta_of(job)
+        path = os.path.join(job["dir"], META_NAME)
+        tmp = path + ".tmp"
+        with io.open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)          # 原子替换：读到的要么是旧版，要么是新版
+    except Exception as e:
+        slog("WARN", "meta 写入失败 %s: %s: %s"
+             % (job.get("id"), type(e).__name__, e))
+
+
+def load_meta(jid):
+    """读某个任务的 meta.json；不存在或损坏都返回 None（不抛）。"""
+    path = os.path.join(OUT_ROOT, jid, META_NAME)
+    try:
+        with io.open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else None
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        slog("WARN", "meta 读取失败 %s: %s: %s" % (jid, type(e).__name__, e))
+        return None
+
+
+def list_meta():
+    """列出磁盘上所有历史任务，新的在前。
+
+    以**磁盘目录**为准（而不是内存 JOBS），所以重启后列表依然完整。
+    任何一条 meta 损坏都只跳过它自己，不影响其余记录。
+    """
+    out = []
+    try:
+        names = os.listdir(OUT_ROOT)
+    except OSError:
+        return out
+    for jid in names:
+        if jid.startswith("_"):        # _uploads 之类的内部目录
+            continue
+        d = load_meta(jid)
+        if not d:
+            continue
+        if not d.get("id"):
+            d["id"] = jid               # meta 里漏写 id 就用目录名兜底
+        out.append(d)
+    out.sort(key=_meta_ts, reverse=True)
+    return out
+
+
+def _safe_jid(jid):
+    """jid 必须是 uuid4().hex[:10] 的形状（**ASCII** 字母数字，可带连字符）。
+
+    `/assets/<jid>/<rel>` 与删除接口都拿它直接拼路径，必须挡掉 `..`、`/`、`\\`、
+    盘符冒号这些能越出 outputs/工作台/ 的写法。
+    ⚠️ 不能只用 `str.isalnum()`：它会把「工作台」「１２３」这类 Unicode 也放行。
+    那些虽然不含分隔符、穿越不了，但没必要开口子 —— 白名单就写死 ASCII。
+    """
+    jid = (jid or "").strip()
+    if not jid or len(jid) > 64:
+        return None
+    for ch in jid:
+        if not (ch.isascii() and (ch.isalnum() or ch == "-")):
+            return None
+    return jid
+
+
+def _asset_url(jid, rel):
+    """作品库卡片用的资源 URL（rel 是任务目录内的相对路径）。"""
+    if not rel:
+        return None
+    return "/assets/%s/%s" % (jid, quote(str(rel).replace("\\", "/")))
+
+
+def _as_dict(v):
+    """meta 是磁盘上的文件，可能被手改、也可能是旧版本写的 —— 一律不信任。"""
+    return v if isinstance(v, dict) else {}
+
+
+def _meta_ts(m):
+    """排序键。createdTs 可能是数字、字符串、缺失或 None，
+    直接拿它 sort 会在混合类型时抛 TypeError（Py3 不允许 int 与 str 比较）。"""
+    t = m.get("createdTs")
+    try:
+        return float(t)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def job_card(m):
+    """把一条 meta.json 记录转成前端可直接渲染的卡片。
+
+    历史任务的图**不靠内存**——只要磁盘目录还在，重启后照样能看、能下。
+    `inMemory` 表示这个任务在当前进程里还活着（能看实时进度、能接着操作）。
+
+    ⚠️ 这里对 meta 的每个字段都做了形状防御：一条被手改坏的 meta 只能让**它自己**
+    这张卡片难看，绝不能让 `/api/jobs` 整个 500（那等于整个作品库打不开）。
+    """
+    jid = str(m.get("id") or "")
+    raw = [x for x in (m.get("items") or []) if isinstance(x, dict)]
+
+    thumb = None
+    for it in raw:
+        thumb = _asset_url(jid, it.get("cover")) or _asset_url(jid, it.get("player"))
+        if thumb:
+            break
+
+    items = []
+    for it in raw:
+        shop = _as_dict(it.get("shop"))
+        items.append({
+            "rank": it.get("rank"), "name": it.get("name"),
+            "artist": it.get("artist"), "album": it.get("album"),
+            "dur": it.get("dur"), "comments": it.get("comments"),
+            "mm": it.get("mm"),
+            "coverUrl": _asset_url(jid, it.get("cover")),
+            "playerUrl": _asset_url(jid, it.get("player")),
+            "playerJpgUrl": _asset_url(jid, it.get("playerJpg")),
+            "keychainUrl": _asset_url(jid, it.get("keychain")),
+            "shopUrls": {str(k): _asset_url(jid, v) for k, v in shop.items()},
+        })
+
+    grids = [g for g in (m.get("shopGrids") or []) if isinstance(g, dict)]
+    live = JOBS.get(jid)
+    return {
+        "id": jid,
+        "title": m.get("title"), "mode": m.get("mode"),
+        # 内存里还活着就以内存状态为准（可能正 running），否则用落盘状态
+        "status": (live.get("status") if live else m.get("status")),
+        "phase": m.get("phase"), "error": m.get("error"),
+        "created": m.get("created"), "createdTs": m.get("createdTs"),
+        "elapsed": m.get("elapsed"),
+        "total": m.get("total"), "done": m.get("done"),
+        "artist": m.get("artist"), "source": m.get("source"),
+        "counts": _as_dict(m.get("counts")),
+        "inMemory": live is not None,
+        "thumb": thumb,
+        "overviewUrl": _asset_url(jid, m.get("overview")),
+        "keychainOverviewUrl": _asset_url(jid, m.get("keychainOverview")),
+        "shopGrids": [{"label": g.get("label"),
+                       "url": _asset_url(jid, g.get("file"))}
+                      for g in grids],
+        "items": items,
+    }
+
+
+def jobs_dir_of(jid):
+    """jid → 磁盘上的任务目录（已做形状校验与越界校验）。"""
+    jid = _safe_jid(jid)
+    if not jid:
+        return None
+    d = os.path.realpath(os.path.join(OUT_ROOT, jid))
+    root = os.path.realpath(OUT_ROOT)
+    if d != root and not d.startswith(root + os.sep):
+        return None
+    return d if os.path.isdir(d) else None
 
 
 # ---------------------------------------------------------------- 钥匙扣商品图
@@ -512,6 +762,7 @@ def render_song(job, s, rank, opt):
         "keychainUrl": url_of(job, kc_rel) if kc_rel else None,
         "shopUrls": {k: url_of(job, v) for k, v in shop_rel.items()},
         "mm": f"{mm[0]:.1f}×{mm[1]:.1f}mm",
+        "coverPath": cpath,
         "playerPath": ppath,
         "keychainPath": (os.path.join(job["dir"], kc_rel) if kc_rel else None),
         "shopPaths": shop_rel,
@@ -550,6 +801,7 @@ def finish(job, made, ar_name, total_label, src=None):
             title=f"{ar_name} · {total_label} · 30×50mm{tag}",
         )
         job["overview"] = url_of(job, os.path.relpath(grid, job["dir"]))
+        job["overviewFile"] = _rel(job, grid)
         log(job, "总览九宫格已生成", "ok")
 
     # 钥匙扣总览（1:1，用方形缩略图，别按 3:5 压扁）
@@ -564,6 +816,7 @@ def finish(job, made, ar_name, total_label, src=None):
             title=f"{ar_name} · 钥匙扣商品图{tag}",
         )
         job["keychainOverview"] = url_of(job, os.path.relpath(kgrid, job["dir"]))
+        job["keychainOverviewFile"] = _rel(job, kgrid)
         log(job, f"钥匙扣总览已生成（{len(kc_made)} 张）", "ok")
 
     # 商品图拼版总览：用户选了哪几种画布就出几张（不再写死竖长/方形）
@@ -607,6 +860,7 @@ def finish(job, made, ar_name, total_label, src=None):
                 gpath = os.path.join(job["dir"], gname)
                 SHOP.save_img(g, gpath, bg=prefer)
                 grids.append({"label": f"商品图总览 · {label} · {bg_tag}",
+                              "file": gname,
                               "url": url_of(job, gname)})
                 log(job, f"商品图总览（{label}）已生成（{len(units)} 张，"
                          f"{g.width}×{g.height}）", "ok")
@@ -618,6 +872,9 @@ def finish(job, made, ar_name, total_label, src=None):
         job["elapsed"] = time.time() - job["t0"]
         job["status"] = "done"
         job["phase"] = "完成"
+        job["artist"] = ar_name          # 作品库列表要显示"做的谁"，落盘留存
+        job["source"] = src
+    save_meta(job)                       # 收尾落盘：完成态的完整元数据
 
 
 def fail(job, msg):
@@ -627,6 +884,7 @@ def fail(job, msg):
         job["phase"] = "失败"
         job["elapsed"] = time.time() - job["t0"]
     log(job, msg, "err")
+    save_meta(job)                       # 失败也要落盘：作品库要能看出"这条失败了"
 
 
 # ---------------------------------------------------------------- 三种模式
@@ -879,6 +1137,7 @@ def run_upload(job, opt):
         "keychainUrl": url_of(job, kc_rel) if kc_rel else None,
         "shopUrls": {k: url_of(job, v) for k, v in shop_rel.items()},
         "mm": f"{mm[0]:.1f}×{mm[1]:.1f}mm",
+        "coverPath": cpath,
         "playerPath": ppath,
         "keychainPath": (os.path.join(job["dir"], kc_rel) if kc_rel else None),
         "shopPaths": shop_rel,
@@ -889,11 +1148,16 @@ def run_upload(job, opt):
 
 # ---------------------------------------------------------------- 打包
 
-def build_zip(job):
-    zpath = os.path.join(job["dir"], f"{safe_name(job['title'])}.zip")
+def build_zip(dirpath, title):
+    """把任务目录打成 ZIP。
+
+    参数是 (目录, 标题) 而不是 job 对象 —— 这样**重启后**（内存里没有 job 了）
+    也能用 meta.json 里的标题重建 ZIP，作品库的"重下"才有得下载。
+    """
+    zpath = os.path.join(dirpath, f"{safe_name(title or '作品')}.zip")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         for sub in ("covers", "players", "keychain", "shop"):
-            d = os.path.join(job["dir"], sub)
+            d = os.path.join(dirpath, sub)
             if not os.path.isdir(d):
                 continue
             for f in sorted(os.listdir(d)):
@@ -901,9 +1165,9 @@ def build_zip(job):
                     continue
                 z.write(os.path.join(d, f), f"{sub}/{f}")
         # 总览类文件都在任务根目录（总览.jpg / 总览-钥匙扣.jpg / 总览-商品图-*.jpg|png）
-        for f in sorted(os.listdir(job["dir"])):
+        for f in sorted(os.listdir(dirpath)):
             if f.startswith("总览") and f.lower().endswith((".jpg", ".png")):
-                z.write(os.path.join(job["dir"], f), f)
+                z.write(os.path.join(dirpath, f), f)
     return zpath
 
 
@@ -1030,10 +1294,24 @@ class Handler(BaseHTTPRequestHandler):
                 rest = unquote(p[len("/assets/"):])
                 jid, _, rel = rest.partition("/")
                 job = JOBS.get(jid)
-                if not job:
-                    return self._json({"error": "job not found"}, 404)
-                target = os.path.realpath(os.path.join(job["dir"], rel))
-                if not target.startswith(os.path.realpath(job["dir"])):
+                if job:
+                    base = job["dir"]
+                else:
+                    # 🔴 重启后 JOBS 是空的，但磁盘上的作品还在。以前这里直接 404，
+                    #    结果"作品库回看"根本看不到图 —— 历史任务必须也放行。
+                    base = jobs_dir_of(jid)
+                    if not base:
+                        return self._json({"error": "job not found"}, 404)
+                base = os.path.realpath(base)
+                target = os.path.realpath(os.path.join(base, rel))
+                # ⚠️ 必须带上 os.sep 比较：否则 base=…\job123 时，兄弟目录 …\job1234
+                #    里的文件也满足 startswith → 前缀绕过。
+                if target != base and not target.startswith(base + os.sep):
+                    return self._json({"error": "forbidden"}, 403)
+                # meta.json / *.tmp 是内部产物（含标题、歌手、选项、相对路径），
+                # 只给后端自己用，不该当成素材被下载出去。
+                low = os.path.basename(target).lower()
+                if low == META_NAME or low.endswith(".tmp"):
                     return self._json({"error": "forbidden"}, 403)
                 dl = (q.get("dl") or ["0"])[0] == "1"
                 return self._file(target,
@@ -1118,12 +1396,23 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "job not found"}, 404)
                 return self._json(snap(job))
 
+            if p == "/api/jobs":
+                # 作品库列表：以**磁盘上的 meta.json** 为准，所以重启后依然完整
+                return self._json({"jobs": [job_card(m) for m in list_meta()]})
+
             if p == "/api/zip":
-                job = JOBS.get((q.get("id") or [""])[0])
-                if not job:
+                jid = (q.get("id") or [""])[0]
+                job = JOBS.get(jid)
+                if job:
+                    z = build_zip(job["dir"], job["title"])
+                    return self._file(z, name=f"{job['title']}.zip")
+                # 历史任务（重启后内存里没有）：用 meta.json 里的标题重建 ZIP
+                d = jobs_dir_of(jid)
+                m = load_meta(jid) if d else None
+                if not d or not m:
                     return self._json({"error": "job not found"}, 404)
-                z = build_zip(job)
-                return self._file(z, name=f"{job['title']}.zip")
+                z = build_zip(d, m.get("title"))
+                return self._file(z, name=f"{m.get('title') or '作品'}.zip")
 
             return self._json({"error": "bad path"}, 404)
         except BrokenPipeError:
@@ -1167,14 +1456,39 @@ class Handler(BaseHTTPRequestHandler):
 
             if p == "/api/reveal":
                 data = json.loads(self._body() or b"{}")
-                job = JOBS.get(data.get("id", ""))
-                if not job:
+                jid = data.get("id", "")
+                job = JOBS.get(jid)
+                d = job["dir"] if job else jobs_dir_of(jid)
+                if not d:
                     return self._json({"error": "job not found"}, 404)
                 try:
-                    os.startfile(job["dir"])  # noqa: S606  (Windows)
+                    os.startfile(d)  # noqa: S606  (Windows)
                     return self._json({"ok": True})
                 except Exception as e:
                     return self._json({"error": str(e)}, 500)
+
+            if p == "/api/jobs/delete":
+                # 删除一条作品记录（磁盘上的整个任务目录）。
+                # ⚠️ 这是**不可恢复**的删除，所以三重把关：id 形状校验 + 必须在
+                #    outputs/工作台/ 以内（jobs_dir_of 已做 realpath 越界检查）
+                #    + 只删任务目录本身，绝不递归删到别处。前端必须二次确认后再调。
+                data = json.loads(self._body() or b"{}")
+                jid = (data.get("id") or "").strip()
+                d = jobs_dir_of(jid)
+                if not d:
+                    return self._json({"error": "job not found"}, 404)
+                with LOCK:
+                    live = JOBS.get(jid)
+                    if live and live.get("status") == "running":
+                        return self._json({"error": "任务正在运行，请等它跑完再删"}, 409)
+                try:
+                    shutil.rmtree(d)
+                except Exception as e:
+                    return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+                with LOCK:
+                    JOBS.pop(jid, None)
+                slog("SYS", "作品库删除任务 %s（%s）" % (jid, d))
+                return self._json({"ok": True, "id": jid})
 
             if p == "/api/run":
                 req = json.loads(self._body() or b"{}")
@@ -1214,7 +1528,7 @@ class Handler(BaseHTTPRequestHandler):
                 titles = {"artist": f"{opt.get('artist', '')}",
                           "song": f"{opt.get('song', '')}",
                           "upload": f"{opt.get('title') or '自定义'}"}
-                job = new_job(titles.get(mode, "任务"), mode)
+                job = new_job(titles.get(mode, "任务"), mode, opt)
                 job["shopGrid"] = opt["shopGrid"]   # finish() 收尾时按它决定要不要拼版
 
                 runner = {"artist": run_artist, "song": run_song,

@@ -346,6 +346,53 @@ details.adv summary:hover{color:var(--fg2)}
   .app{flex-direction:column}
   aside{width:100%;max-height:52vh;border-right:0;border-bottom:1px solid var(--line)}
 }
+/* ---------------- 作品库（B3） ----------------
+   任务清单来自后端 /api/jobs（读磁盘上的 meta.json），所以重启工作台后
+   上次做的东西依然在这里，能回看、能重下、能删。 */
+.lib{position:fixed;inset:0;background:rgba(30,34,42,.42);z-index:98;
+     display:none;align-items:flex-start;justify-content:center;padding:42px 24px}
+.lib.on{display:flex}
+.libbox{width:min(1060px,100%);max-height:calc(100vh - 84px);background:var(--panel);
+     border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;
+     flex-direction:column;box-shadow:0 24px 60px rgba(20,25,40,.26)}
+.libhd{display:flex;align-items:center;gap:10px;padding:14px 18px;
+     border-bottom:1px solid var(--line);flex:none}
+.libhd b{font-size:14px}
+.libhd small{font-size:11px;color:var(--dim2)}
+.libhd .sp{flex:1}
+.libbd{padding:16px 18px;overflow:auto}
+.librow{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;
+     background:var(--card);overflow:hidden}
+.librow .hd{display:flex;gap:14px;padding:12px 14px;align-items:flex-start}
+.librow .th{width:96px;height:96px;flex:none;border-radius:9px;overflow:hidden;
+     background:#eceef2;border:1px solid var(--line);cursor:zoom-in}
+.librow .th img{width:100%;height:100%;object-fit:cover;display:block}
+.librow .mi{flex:1;min-width:0}
+.librow .mi .t{font-size:13.5px;font-weight:600;white-space:nowrap;
+     overflow:hidden;text-overflow:ellipsis}
+.librow .mi .s{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.7}
+.librow .mi .tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:20px;
+     background:#eef0f4;color:var(--dim);margin-right:6px}
+.librow .mi .tag.ok{background:#e6f6ec;color:#1d7a44}
+.librow .mi .tag.er{background:#fdeaea;color:#c02626}
+.librow .mi .tag.run{background:#fff4e0;color:#9a6206}
+.librow .mi .tag.hist{background:#eef0f4;color:var(--dim2)}
+.librow .ops{display:flex;gap:7px;flex:none;flex-wrap:wrap;justify-content:flex-end;
+     max-width:290px}
+.librow .ops button{font-family:inherit}
+.librow .ops .del{border-color:#eec3c3;color:#b82323}
+.librow .ops .del:hover{border-color:#d99;background:#fdf3f3}
+.libdet{border-top:1px dashed var(--line);padding:12px 14px;background:#fafbfc}
+.libdet .dt{font-size:11.5px;color:var(--dim2);margin:2px 0 8px}
+.libdet .ims{display:flex;gap:10px;flex-wrap:wrap}
+.libdet .ims .c{border:1px solid var(--line);border-radius:9px;overflow:hidden;
+     background:#fff;cursor:zoom-in}
+.libdet .ims .c img{display:block;width:150px;height:auto}
+.libdet .itm{border:1px solid var(--line);border-radius:10px;padding:9px 11px;
+     margin-bottom:9px;background:#fff}
+.libdet .itm .n{font-size:12.5px;font-weight:600}
+.libdet .itm .lk{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.libleer{text-align:center;color:var(--dim);font-size:12.5px;padding:34px 10px}
 </style>
 </head>
 <body data-page-node-id="Na2JkVOieEwQ90ny6oba1N">
@@ -522,6 +569,7 @@ details.adv summary:hover{color:var(--fg2)}
     <div class="bar" data-page-node-id="ABF4cgZMJkcxmagyVDvfGZ">
       <div class="ttl" id="ttl" data-page-node-id="ugxroEdkkZsrda9ZUOfXoc">未开始<small id="sub" data-page-node-id="xfMKTCwCqTg1jU68vIYZ7B">选一个模式，配好参数，点开始生成</small></div>
       <div class="acts" data-page-node-id="nA8nfcPZ8EFbpGO8AKelGL">
+        <button class="btn" id="btnLib" data-page-node-id="LibBtn0Xq7Lm2NvB4tRw">作品库</button>
         <button class="btn" id="btnZip" disabled data-page-node-id="8dnzDgZKgdLJkvAyCGhr6J">下载 ZIP</button>
         <button class="btn" id="btnOpen" disabled data-page-node-id="xvXDAU5GrOG07sHWJ3USxk">打开文件夹</button>
       </div>
@@ -543,6 +591,20 @@ details.adv summary:hover{color:var(--fg2)}
       </div>
     </div>
   </main>
+</div>
+
+<!-- 作品库：历史任务清单（数据来自后端 /api/jobs，读磁盘 meta.json） -->
+<div class="lib" id="lib" data-page-node-id="LibOv0Xq7Lm2NvB4tRw">
+  <div class="libbox" data-page-node-id="LibBox1Dk9Wz3QmNr6sVb">
+    <div class="libhd" data-page-node-id="LibHd2Xq7Lm2NvB4tRw1">
+      <b data-page-node-id="LibT0Xq7Lm2NvB4tRw9">作品库</b>
+      <small id="libsum" data-page-node-id="LibSum3QmNr6sVbXp2"></small>
+      <span class="sp"></span>
+      <button class="btn" id="libRefresh" data-page-node-id="LibRf4Zr8Wv3Tq6YnA1">刷新</button>
+      <button class="btn" id="libClose" data-page-node-id="LibCl5Zr8Wv3Tq6YnA2">关闭</button>
+    </div>
+    <div class="libbd" id="libbd" data-page-node-id="LibBd6Zr8Wv3Tq6YnA3"></div>
+  </div>
 </div>
 
 <div class="lb" id="lb" data-page-node-id="q7toAw18vTOjb6lBsJrSx0">
@@ -686,6 +748,17 @@ function toast(msg){
 function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+/* 把值安全地嵌进「HTML 属性里的单引号 JS 字符串」，即 onclick="fn('值')"。
+   ⚠️ 这里绝不能用 esc()：浏览器会**先做实体解码**再把属性值交给 JS 引擎，
+   &#39; 会还原成 ' 把 JS 字符串截断 —— 歌名里带撇号（Don't Stop）就会破版，
+   构造得当还能把后面的内容当代码执行。（项目里原有的写法都有这个隐患。）
+   正确顺序不能反：先做 JS 转义（反斜杠 → 单引号 → 换行），再做 HTML 实体转义。 */
+function jsq(s){
+  return esc(String(s==null?'':s)
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/[\r\n\u2028\u2029]/g,' '));
 }
 /* 后端给的图片地址是 /assets/... 相对路径。页面若不是从后端地址打开的，
    这些图片就会指到别处去（表现是缩略图全裂）。统一补上后端前缀。 */
@@ -1079,7 +1152,7 @@ function shopStrip(it){
   if(!keys.length) return '';
   return '<div class="shopstrip">' + keys.map(k=>`
       <div class="sst ${k.endsWith('transparent') ? 'tr' : ''}"
-           onclick="zoom('${esc(asset(it.shopUrls[k]))}','${esc(it.name)} ${esc(SHOP_TAG[k]||k)}')">
+           onclick="zoom('${jsq(asset(it.shopUrls[k]))}','${jsq(it.name)} ${jsq(SHOP_TAG[k]||k)}')">
         <img src="${esc(asset(it.shopUrls[k]))}" alt="" loading="lazy">
         <span>${esc(SHOP_TAG[k]||k)}</span>
       </div>`).join('') + '</div>';
@@ -1110,7 +1183,7 @@ function paint(d){
       <div style="padding:9px 14px;font-size:11.5px;color:var(--dim);
         border-bottom:1px solid var(--line)">整组总览</div>
       <img src="${esc(asset(d.overview))}" style="width:100%;display:block;cursor:zoom-in"
-           onclick="zoom('${esc(asset(d.overview))}','整组总览')">
+           onclick="zoom('${jsq(asset(d.overview))}','整组总览')">
     </div>`;
   }
 
@@ -1120,7 +1193,7 @@ function paint(d){
       <div style="padding:9px 14px;font-size:11.5px;color:var(--dim);
         border-bottom:1px solid var(--line)">钥匙扣商品图总览</div>
       <img src="${esc(asset(d.keychainOverview))}" style="width:100%;display:block;cursor:zoom-in"
-           onclick="zoom('${esc(asset(d.keychainOverview))}','钥匙扣商品图总览')">
+           onclick="zoom('${jsq(asset(d.keychainOverview))}','钥匙扣商品图总览')">
     </div>`;
   }
 
@@ -1130,7 +1203,7 @@ function paint(d){
       <div style="padding:9px 14px;font-size:11.5px;color:var(--dim);
         border-bottom:1px solid var(--line)">${esc(g.label)}</div>
       <img src="${esc(asset(g.url))}" style="width:100%;display:block;cursor:zoom-in"
-           onclick="zoom('${esc(asset(g.url))}','${esc(g.label)}')">
+           onclick="zoom('${jsq(asset(g.url))}','${jsq(g.label)}')">
     </div>`;
   });
 
@@ -1145,15 +1218,15 @@ function paint(d){
           </div>
         </div>
         <div class="shots">
-          <div class="sh cv" onclick="zoom('${esc(asset(it.coverUrl))}','${esc(it.name)} 正方形封面母版')">
+          <div class="sh cv" onclick="zoom('${jsq(asset(it.coverUrl))}','${jsq(it.name)} 正方形封面母版')">
             <img src="${esc(asset(it.coverUrl))}" alt="" loading="lazy">
             <span class="cap">封面</span>
           </div>
-          <div class="sh pl" onclick="zoom('${esc(asset(it.playerUrl))}','${esc(it.name)} 30×50mm 播放界面')">
+          <div class="sh pl" onclick="zoom('${jsq(asset(it.playerUrl))}','${jsq(it.name)} 30×50mm 播放界面')">
             <img src="${esc(asset(it.playerUrl))}" alt="" loading="lazy">
             <span class="cap">播放界面</span>
           </div>${it.keychainUrl ? `
-          <div class="sh kc" onclick="zoom('${esc(asset(it.keychainUrl))}','${esc(it.name)} 钥匙扣商品图')">
+          <div class="sh kc" onclick="zoom('${jsq(asset(it.keychainUrl))}','${jsq(it.name)} 钥匙扣商品图')">
             <img src="${esc(asset(it.keychainUrl))}" alt="" loading="lazy">
             <span class="cap">钥匙扣</span>
           </div>` : ''}
@@ -1214,6 +1287,171 @@ $('#btnOpen').onclick = async ()=>{
   try{ await jpost('/api/reveal', {id: JOB}); toast('已打开输出文件夹'); }
   catch(e){ toast('打开失败：'+e.message); }
 };
+
+/* ---------------- 作品库（B3） ----------------
+   列表来自 /api/jobs —— 后端读的是**磁盘上的 meta.json**，所以工作台重启后
+   历史作品依然在，不依赖内存里还有没有这个任务。 */
+
+let LIB_JOBS = [];        // 最近一次拉到的列表
+const LIB_OPEN = {};      // 哪些卡片展开了"回看"
+
+function libWhen(ts, s){
+  if(s) return s;
+  if(!ts) return '';
+  const d = new Date(ts * 1000);
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function libStatusTag(j){
+  if(!j.inMemory) return '<span class="tag hist">历史</span>';
+  if(j.status === 'running') return '<span class="tag run">进行中</span>';
+  if(j.status === 'error') return '<span class="tag er">失败</span>';
+  return '<span class="tag ok">完成</span>';
+}
+
+/* 回看：把这条作品里"产出了什么"摊开 —— 总览 + 每首的下载。
+   商品图变体不写死 key，直接按对象里有的列出来（画布是可配置的）。 */
+function libDetail(j){
+  let h = '<div class="libdet">';
+  if(j.error) h += `<div class="dt" style="color:#c02626">失败原因：${esc(j.error)}</div>`;
+
+  const over = [];
+  if(j.overviewUrl) over.push(['整组总览', j.overviewUrl]);
+  if(j.keychainOverviewUrl) over.push(['钥匙扣总览', j.keychainOverviewUrl]);
+  (j.shopGrids || []).forEach(g => { if(g.url) over.push([g.label || '商品图总览', g.url]); });
+  if(over.length){
+    h += '<div class="dt">总览图</div><div class="ims">' + over.map(([cap,u]) =>
+      `<div class="c" onclick="zoom('${jsq(asset(u))}','${jsq(cap)}')">
+         <img src="${esc(asset(u))}" alt="" loading="lazy"></div>`).join('') + '</div>';
+  }
+
+  if(!j.items.length){
+    h += '<div class="dt">这个任务没有产出图片（可能中途失败或被中止）。</div>';
+  }else{
+    h += '<div class="dt" style="margin-top:12px">逐首下载</div>';
+    h += j.items.map(it=>{
+      const links = [];
+      if(it.coverUrl) links.push(['封面', it.coverUrl]);
+      if(it.playerJpgUrl) links.push(['播放图JPG', it.playerJpgUrl]);
+      if(it.playerUrl) links.push(['播放图PNG', it.playerUrl]);
+      if(it.keychainUrl) links.push(['钥匙扣', it.keychainUrl]);
+      Object.keys(it.shopUrls || {}).forEach(k=>{
+        if(!it.shopUrls[k]) return;
+        // 展示名尽量用界面上那套中文（SHOP_TAG 由 /api/ping 下发的画布预设生成）；
+        // 历史作品可能用的是后来改过名的画布，取不到就退回可读的英文键。
+        links.push([SHOP_TAG[k] || k.replace(/_/g,'·'), it.shopUrls[k]]);
+      });
+      return `<div class="itm">
+        <div class="n">${String(it.rank).padStart(2,'0')} ${esc(it.name)}
+          <span style="font-weight:400;color:var(--dim)"> · ${esc(it.artist)} · ${esc(it.dur||'')}</span></div>
+        <div class="lk">${links.map(([t,u]) =>
+          `<a class="mini" href="${esc(asset(u))}?dl=1">${esc(t)}</a>`).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+  return h + '</div>';
+}
+
+function libRow(j){
+  const c = j.counts || {};
+  const bits = [];
+  bits.push(`${c.songs || 0} 首`);
+  if(c.keychain) bits.push(`钥匙扣 ${c.keychain}`);
+  if(c.shop) bits.push(`商品图 ${c.shop}`);
+  if(c.grids) bits.push(`拼版 ${c.grids}`);
+  const srcTag = j.source ? ` · ${j.source === 'qq' ? 'QQ音乐' : '网易云'}` : '';
+  const modeTag = {artist:'歌手热门', song:'单曲指定', upload:'上传封面'}[j.mode] || j.mode || '';
+  return `<div class="librow" id="lib-${esc(j.id)}">
+    <div class="hd">
+      <div class="th" ${j.thumb ? `onclick="zoom('${jsq(asset(j.thumb))}','${jsq(j.title)}')"` : ''}>
+        ${j.thumb ? `<img src="${esc(asset(j.thumb))}" alt="" loading="lazy">` : ''}
+      </div>
+      <div class="mi">
+        <div class="t">${libStatusTag(j)} ${esc(j.title || '未命名')}</div>
+        <div class="s">${esc(modeTag)}${esc(srcTag)} · ${esc(libWhen(j.createdTs, j.created))}
+          · 耗时 ${esc(j.elapsed || 0)}s</div>
+        <div class="s">${bits.join(' · ')}${c.songs ? '' : '（无产出）'}</div>
+      </div>
+      <div class="ops">
+        <button class="btn" onclick="libToggle('${jsq(j.id)}')">回看</button>
+        <a class="mini" href="${API}/api/zip?id=${esc(j.id)}" title="打包下载">ZIP</a>
+        <button class="btn" onclick="libReveal('${jsq(j.id)}')">文件夹</button>
+        <button class="btn del" onclick="libDel('${jsq(j.id)}')">删除</button>
+      </div>
+    </div>
+    <div class="libdet-holder" id="libd-${esc(j.id)}">${LIB_OPEN[j.id] ? libDetail(j) : ''}</div>
+  </div>`;
+}
+
+function libPaint(){
+  const bd = $('#libbd');
+  if(!LIB_JOBS.length){
+    bd.innerHTML = '<div class="libleer">还没有任何作品。<br>' +
+      '在左侧配好参数、点「开始生成」做一批，就会自动出现在这里。</div>';
+    $('#libsum').textContent = '';
+    return;
+  }
+  $('#libsum').textContent = `共 ${LIB_JOBS.length} 条 · 最近的排在最前`;
+  bd.innerHTML = LIB_JOBS.map(libRow).join('');
+}
+
+async function libLoad(quiet){
+  $('#libsum').textContent = '读取中…';
+  try{
+    const d = await jget('/api/jobs');
+    LIB_JOBS = d.jobs || [];
+    libPaint();
+    if(!quiet) toast(`已载入 ${LIB_JOBS.length} 条作品`);
+  }catch(e){
+    $('#libbd').innerHTML = `<div class="libleer">读取失败：${esc(e.message)}</div>`;
+    $('#libsum').textContent = '';
+  }
+}
+
+function libOpen(){
+  $('#lib').classList.add('on');
+  libLoad(true);
+}
+function libClose(){ $('#lib').classList.remove('on'); }
+
+function libToggle(id){
+  LIB_OPEN[id] = !LIB_OPEN[id];
+  const j = LIB_JOBS.find(x=>x.id === id);
+  const holder = $('#libd-' + id);
+  if(holder && j) holder.innerHTML = LIB_OPEN[id] ? libDetail(j) : '';
+}
+
+async function libReveal(id){
+  try{ await jpost('/api/reveal', {id}); toast('已打开文件夹'); }
+  catch(e){ toast('打开失败：' + e.message); }
+}
+
+async function libDel(id){
+  const j = LIB_JOBS.find(x=>x.id === id) || {};
+  // 删除会把 outputs/工作台/<id>/ 整个目录删掉，不可恢复 —— 必须二次确认，
+  // 并且把"要删的是哪一条"写进确认框，避免点错行删错东西。
+  const n = (j.counts && j.counts.songs) || 0;
+  if(!confirm(`确定删除这条作品吗？\n\n${j.title || id}\n${n} 首 · 图片文件会被一起删除，无法恢复。`))
+    return;
+  try{
+    await jpost('/api/jobs/delete', {id});
+    delete LIB_OPEN[id];
+    LIB_JOBS = LIB_JOBS.filter(x=>x.id !== id);
+    libPaint();
+    toast('已删除');
+  }catch(e){
+    toast('删除失败：' + e.message);
+  }
+}
+
+$('#btnLib').onclick = libOpen;
+$('#libClose').onclick = libClose;
+$('#libRefresh').onclick = ()=> libLoad(false);
+$('#lib').onclick = e=>{ if(e.target === $('#lib')) libClose(); };
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && $('#lib').classList.contains('on')) libClose();
+});
 
 /* ---------------- 启动自检 ---------------- */
 /* 同源命中时（从后端地址打开，最常见）这里什么都不做：零延迟、零开销。
