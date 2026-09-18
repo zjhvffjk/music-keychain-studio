@@ -212,6 +212,166 @@ def artist_albums(artist_id: int, limit: int = 200):
     return out[:limit]
 
 
+def album_detail(album_id):
+    """专辑详情（含曲目列表）。
+
+    ⚠️ 必须走 `/api/v1/album/{id}` —— 少了 `v1` 的 `/api/album/{id}` 现在会
+    返回 code -462（要求绑定手机）。实测 v1 免登录，范特西 10 首完整返回。
+    """
+    d = get_json(f"{API}/v1/album/{album_id}")
+    alb = d.get("album") or {}
+    songs = d.get("songs") or alb.get("songs") or []
+    return alb, songs
+
+
+def _album_id_from_artist(artist: str, album_name: str):
+    """从歌手专辑列表里找同名专辑 id。
+
+    比专辑搜索可靠得多：实测搜「Jay 周杰伦」的 album 候选前 12 条**全是翻唱集**，
+    真首专《Jay》根本排不进来（英文短名专辑的搜索排名劣势），
+    但它一定出现在 artist/albums 列表里。
+    """
+    try:
+        res = search(artist, "artist", 5)
+        arts = res.get("artists") or []
+        if not arts:
+            return None
+        # 优先名字完全相等的歌手（避免"周杰伦"搜到模仿者）
+        hit = [a for a in arts if (a.get("name") or "") == artist]
+        aid = (hit[0] if hit else arts[0]).get("id")
+        for a in artist_albums(aid, 200):
+            if (a.get("name") or "") == album_name:
+                return a.get("id")
+    except Exception:
+        pass
+    return None
+
+
+def album_tracks(album_name: str, artist: str = "", album_id=None, limit: int = 60):
+    """取某专辑的曲目列表。
+
+    定位顺序（可靠性从高到低）：
+      A. 已知 album_id（批量模式走这条，albums.json 里带 id）→ 直接查详情
+      B. 歌手专辑列表里找同名专辑 id（最可靠的兜底）
+      C. 专辑搜索候选 + 详情复核
+      D. search(song) 反查（覆盖可能不全）
+    返回 (曲目名列表, 专辑名)；拿不到返回 ([], "")。
+
+    ⚠️ 单张模式**必须**复核候选的 name/artists：只按搜索结果盲取第一个会拿错
+    ——实测专辑名 "Jay" 命中山寨翻唱集，返回「菊花台（Cover 周杰伦）」这种脏数据。
+    """
+    def _by_id(aid, fallback_name):
+        try:
+            alb, songs = album_detail(aid)
+            names = [s.get("name") for s in songs if s.get("name")]
+            if names:
+                return names[:limit], (alb.get("name") or fallback_name)
+        except Exception:
+            pass
+        return None
+
+    # A. 已知 id
+    if album_id is not None:
+        got = _by_id(album_id, album_name)
+        if got:
+            return got
+
+    # B. 歌手专辑列表反查 id
+    if album_name and artist:
+        aid = _album_id_from_artist(artist, album_name)
+        if aid is not None:
+            got = _by_id(aid, album_name)
+            if got:
+                return got
+
+    # C. 专辑搜索候选 + 详情复核
+    if album_name:
+        try:
+            res = search(f"{album_name} {artist}".strip(), "album", 20)
+            fallback = None
+            for cand in (res.get("albums") or [])[:8]:
+                try:
+                    alb, songs = album_detail(cand.get("id"))
+                except Exception:
+                    continue
+                names = [s.get("name") for s in songs if s.get("name")]
+                if not names:
+                    continue
+                nm = alb.get("name") or cand.get("name") or album_name
+                arts = " ".join(a.get("name", "") for a in (alb.get("artists") or []))
+                name_ok = (nm == album_name)
+                art_ok = (not artist) or (artist in arts)
+                if name_ok and art_ok:
+                    return names[:limit], nm
+                if fallback is None and name_ok:
+                    fallback = (names[:limit], nm)
+            if fallback:
+                return fallback
+        except Exception:
+            pass
+
+    # D. 最后兜底：search(song) 反查
+    return _album_tracks_by_search(album_name, artist, album_id, limit)
+
+
+def _album_tracks_by_search(album_name: str, artist: str = "", album_id=None,
+                            limit: int = 60):
+    """兜底：search(song) 的每条结果都带 album.id/album.name，按 id 归组还原专辑。
+
+    实测搜索结果的顺序**就是专辑曲序**（范特西 10 首顺序全对），故不额外排序。
+    """
+    kw = f"{album_name} {artist}".strip()
+    groups = {}          # album_id -> {"name":..., "songs":[...]}
+    offset = 0
+    while offset < 120:
+        try:
+            d = get_json(f"{API}/search/get/web",
+                         {"s": kw, "type": 1, "limit": 30, "offset": offset,
+                          "total": "true"})
+        except Exception:
+            break
+        songs = (d.get("result") or {}).get("songs") or []
+        if not songs:
+            break
+        for s in songs:
+            alb = s.get("album") or {}
+            aid = alb.get("id")
+            if aid is None:
+                continue
+            g = groups.setdefault(aid, {"name": alb.get("name") or "", "songs": []})
+            nm = s.get("name")
+            if nm and nm not in g["songs"]:
+                g["songs"].append(nm)
+        if len(songs) < 30:
+            break
+        offset += 30
+        time.sleep(0.3)
+
+    if not groups:
+        return [], ""
+
+    # 优先级：显式 album_id > 专辑名完全相等 > 名字包含 > 曲目最多
+    pick = None
+    if album_id is not None:
+        for aid, g in groups.items():
+            if str(aid) == str(album_id):
+                pick = g
+                break
+    if pick is None:
+        for aid, g in groups.items():
+            if g["name"] == album_name:
+                pick = g
+                break
+    if pick is None:
+        for aid, g in groups.items():
+            if album_name and album_name in g["name"]:
+                pick = g
+                break
+    if pick is None:
+        pick = max(groups.values(), key=lambda g: len(g["songs"]))
+    return pick["songs"][:limit], pick["name"]
+
+
 def cmd_artist(a):
     res = search(a.keyword, "artist", 20)
     ars = res.get("artists", [])
