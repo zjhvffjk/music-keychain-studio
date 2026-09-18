@@ -25,6 +25,8 @@
 | 白底商品图 | 纯白底 / 透明底，钥匙扣放大当主角；画布预设可配置（淘宝 / 天猫 / 拼多多 / 抖店 / 亚马逊 / Etsy…），可拼版总览 | `tools/make_keychain_shop.py` |
 | 黑胶播放界面 | **1:2 竖图**（默认 1200×2400）：深色底 + 圆黑胶唱片 + 唱臂 + 控制区，中心圆形封面；宽度可选 900/1200/1500 | `tools/make_vinyl.py` |
 | 专辑全集 | 给歌手名，抓**全部专辑**（含单曲 / EP / Live / Remix），出方形**专辑卡** + **专辑墙**总览 + 封面母版原图 | `tools/make_album.py` |
+| **迷你CD 打印拼版** | 做**实体迷你唱片机**：把专辑排成 A4 300dpi 拼版（盘面 Ø40 / 封面折件 82×41 / 封底条 108.4×38），带裁切线 + 50mm 校验尺。**只有封面也能跑** —— 缺的部件由**封面衍生设计引擎**自动生成，并自动联网取**真实曲目列表**印到封底 | `tools/make_minicd.py` |
+| 封面衍生设计引擎 | 从一张封面提色板 + 推断 mood/style（minimalist / retro / bold），长出配套的盘面（CD 沟槽 + 扇形高光）、内页、封底（曲目 + 条码）、内盘底、书脊 | `tools/design_parts.py` |
 | 批量套装 | 按歌手抓取热门歌曲，一次产出一整套 + 总览图 | `tools/make_set.py` |
 | 网页工作台 | 本地可视化界面，勾选即出图，支持打包 ZIP 下载 | `workbench/server.py` |
 
@@ -140,7 +142,33 @@ python make_keychain_shop.py --batch ../outputs/周杰伦-热门前5 \
 
 # 看看有哪些画布预设可选
 python make_keychain_shop.py --list-canvas
+
+# 7) 迷你CD 打印拼版（做实体迷你唱片机）
+#    只给一张封面就行 —— 盘面/内页/封底/内盘底全部由封面衍生设计出来，
+#    曲目列表自动联网反查（拿不到就留空，不报错）
+python make_minicd.py --cover 封面.jpg --artist 周杰伦 --album 范特西 \
+       --out ../outputs/范特西-迷你CD --preview
+
+# 全套素材齐全时（用文件名关键词自动识别部件）
+python make_minicd.py --dir ../outputs/范特西-迷你CD素材 \
+       --artist 周杰伦 --album 范特西 --out ../outputs/范特西-迷你CD --preview
+
+# 批量：读 albums.json，为全部专辑各出一套（周杰伦 44 张实测全成功）
+python make_minicd.py --batch ../outputs/周杰伦-专辑全集/albums.json \
+       --artist 周杰伦 --out ../outputs/周杰伦-迷你CD全集
+
+# 手动给曲目 / 离线加速 / 覆盖设计语言
+python make_minicd.py --cover a.jpg --album X --tracks "曲目1;曲目2;曲目3"
+python make_minicd.py --cover a.jpg --album X --no-tracks
+python make_minicd.py --cover a.jpg --album X --style retro --mood dreamy
+
+# 出对照图（① 封面 → ② 盘面 → ③ 折件 → ④ 封底条，自带文字标注）
+python make_minicd_compare.py
 ```
+
+**打印提示**：拼版左下角有一根 **50mm 校验尺**。家庭打印默认「缩放到可打印区域」
+会把 40mm 打成 38mm（差 1mm 就装不进盒）—— 打出来拿尺子量那根线，
+不足 50mm 就在打印设置里关掉缩放，或用 `--scale 1.02` 补偿。
 
 不带任何素材参数直接运行 `make_keychain.py`，会用仓库自带的抽象占位图出一张演示图。
 
@@ -156,6 +184,10 @@ python make_keychain_shop.py --list-canvas
 │   ├── make_player.py         播放界面卡片
 │   ├── make_vinyl.py          黑胶播放界面（1:2 竖图）
 │   ├── make_album.py          专辑全集（全部专辑 → 封面母版 + 专辑卡 + 专辑墙）
+│   ├── make_minicd.py         迷你CD 打印拼版（A4 300dpi，实体迷你唱片机）
+│   ├── design_parts.py        封面衍生设计引擎（一张封面长出全套盒面部件）
+│   ├── make_minicd_compare.py 迷你CD 对照图（① 封面 → ② 盘面 → ③ 折件 → ④ 封底条）
+│   ├── fetch_parts.py         部件图网络搜索（备选路线：易被限流 / 结果污染）
 │   ├── make_keychain.py       钥匙扣商品图（五层合成，场景图）
 │   ├── make_keychain_shop.py  白底商品图（纯白/透明底，竖长/方形 + 拼版）
 │   ├── keychain_build.py      贴片标定：从实拍素材反解 RGBA 叠加层
@@ -167,6 +199,8 @@ python make_keychain_shop.py --list-canvas
 │   ├── e2e_keychain.py        端到端验收：钥匙扣（17 项断言）
 │   ├── e2e_shop.py            端到端验收：白底商品图
 │   ├── e2e_vinyl.py           端到端验收：黑胶播放界面（19 项断言）
+│   ├── e2e_album.py           端到端验收：专辑全集（38 项断言）
+│   ├── e2e_design.py          端到端验收：封面衍生设计引擎（35 项断言）
 │   └── start_bg.py            脱离会话后台启动工作台
 ├── workbench/                 网页工作台
 │   ├── server.py              HTTP 后端（仅标准库，只绑 127.0.0.1）
