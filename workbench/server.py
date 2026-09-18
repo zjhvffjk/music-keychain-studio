@@ -81,6 +81,8 @@ if _missing:
     sys.exit(1)
 
 from PIL import Image  # noqa: E402
+from packaging_service import SERVICE as PACKAGING  # noqa: E402
+from design_service import SERVICE as DESIGN  # noqa: E402
 
 from fetch163 import (  # noqa: E402
     API, cover_url, download, get_json, resolve_picurl, safe_name, search,
@@ -207,6 +209,7 @@ MIME = {
     ".png": "image/png",
     ".webp": "image/webp",
     ".zip": "application/zip",
+    ".pdf": "application/pdf",
     ".ico": "image/x-icon",
 }
 
@@ -1478,6 +1481,8 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
@@ -1541,6 +1546,14 @@ class Handler(BaseHTTPRequestHandler):
             slog("REQ", "GET %s | UA=%s | REF=%s"
                  % (self.path[:110], _ua, _rf))
         try:
+            if PACKAGING.handle(self, p, q, "GET"):
+                return
+            if DESIGN.handle(self, p, q, "GET"):
+                return
+            if p == "/packaging":
+                return self._file(os.path.join(HERE, "packaging.html"))
+            if p in ("/design", "/design.html"):
+                return self._file(os.path.join(HERE, "design.html"))
             if p == "/api/ping":
                 kc_ok, kc_why = keychain_ready()
                 sh_ok, sh_why = shop_ready()
@@ -1640,6 +1653,7 @@ class Handler(BaseHTTPRequestHandler):
                     "artist": {"id": ar.get("id"), "name": ar.get("name")},
                     "count": len(albs),
                     "albums": [{
+                        "id": a.get("id"),
                         "name": a["name"], "date": a["date"],
                         "tracks": a["tracks"], "type": a["type"],
                         "company": a["company"], "pic": a["pic"],
@@ -1736,6 +1750,10 @@ class Handler(BaseHTTPRequestHandler):
                 (self.headers.get("User-Agent") or "")[:70],
                 (self.headers.get("Referer") or "")[:90]))
         try:
+            if PACKAGING.handle(self, p, q, "POST"):
+                return
+            if DESIGN.handle(self, p, q, "POST"):
+                return
             if p == "/api/upload":
                 raw = self._body()
                 if len(raw) < 100:

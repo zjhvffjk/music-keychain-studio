@@ -224,6 +224,9 @@ body.mode-album #vinylBox{display:none}
 .srow .a{color:var(--dim2);font-size:11px;max-width:38%;overflow:hidden;
          text-overflow:ellipsis;white-space:nowrap}
 .srow .d{color:var(--dim2);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+.srow .btn-dz{flex:none;font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid var(--red);
+  background:#fff;color:var(--red);cursor:pointer;transition:.13s;font-family:inherit}
+.srow .btn-dz:hover{background:var(--red);color:#fff}
 
 /* 上传区 */
 .drop{
@@ -423,6 +426,7 @@ body.mode-album #vinylBox{display:none}
       <p data-page-node-id="npHX1HRrunItCi5dYNPFnZ">封面母版抓取 · 30×50mm 播放界面合成</p>
     </div>
     <div class="side-body" data-page-node-id="WpJ6Z6VmjtDHN9g5U45AKR">
+      <a href="/packaging" style="display:block;margin:0 0 16px;padding:12px 14px;border-radius:8px;background:#e9eee6;color:#285a44;text-decoration:none;font-weight:600">专辑包装工坊 <span style="float:right">↗</span></a>
       <div class="tabs" data-page-node-id="zjZLishYm1QDxDGAwcPHVX">
         <button data-m="artist" class="on" data-page-node-id="K57GPO7tK79MOdA0Lzt03R">歌手热门</button>
         <button data-m="album" data-page-node-id="AlbTab0Xq7Lm2NvB4tRwZ">专辑全集</button>
@@ -828,6 +832,7 @@ let VINYL_W = 1200;
 /* 专辑卡边长。档位同样来自后端（albumSizes）。 */
 let ALBUM_SIZE  = 1500;
 let ALBUM_FOUND = null;   // 查询到的 {artist, count} —— 给提交时做提示用
+let ALBUM_LIST = [];      // 最近一次专辑列表（含 id/pic）——「设计这张专辑」按钮用
 
 /* ---------------- 小工具 ---------------- */
 let toastT;
@@ -1060,6 +1065,7 @@ $('#btnQueryAlbum').onclick = async ()=>{
         <span class="t" title="${esc(a.name)}">${esc(a.name)}</span>
         <span class="a">${esc(a.type||'')}</span>
         <span class="d">${esc(a.date||'')} · ${esc(String(a.tracks||''))}首</span>
+        <button class="btn-dz" data-i="${i}">设计这张专辑</button>
       </div>`).join('');
     $('#albumBox').innerHTML = `
       <div class="acard">
@@ -1070,6 +1076,21 @@ $('#btnQueryAlbum').onclick = async ()=>{
         </div>
       </div>
       <div class="slist">${rows}</div>`;
+    ALBUM_LIST = d.albums||[];
+    $$('#albumBox .btn-dz').forEach(b=>{
+      b.onclick = (ev)=>{
+        ev.stopPropagation();
+        const a = ALBUM_LIST[parseInt(b.dataset.i,10)] || {};
+        const u = new URLSearchParams();
+        u.set('artist', d.artist.name||'');
+        u.set('album', a.name||'');
+        if(a.id) u.set('id', String(a.id));
+        if(a.pic) u.set('pic', a.pic);
+        if(a.company) u.set('company', a.company||'');
+        if(a.date) u.set('date', a.date||'');
+        location.href = 'design.html?' + u.toString();
+      };
+    });
     toast(`找到 ${d.artist.name}，共 ${d.count} 张专辑`);
   }catch(e){ toast(e.message); $('#albumBox').innerHTML=''; }
   finally{ btn.disabled = false; btn.textContent = '查询'; }

@@ -1,0 +1,11 @@
+{
+  "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "replace-with-your-installed-sd15-or-sdxl-checkpoint.safetensors"}},
+  "2": {"class_type": "LoadImage", "inputs": {"image": "{{cover}}"}},
+  "3": {"class_type": "ImageScale", "inputs": {"image": ["2", 0], "upscale_method": "lanczos", "width": 768, "height": 768, "crop": "center"}},
+  "4": {"class_type": "VAEEncode", "inputs": {"pixels": ["3", 0], "vae": ["1", 2]}},
+  "5": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{prompt}}", "clip": ["1", 1]}},
+  "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "text, logo, watermark, signature, blurry", "clip": ["1", 1]}},
+  "7": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["5", 0], "negative": ["6", 0], "latent_image": ["4", 0], "seed": "{{seed}}", "steps": 24, "cfg": 6, "sampler_name": "euler", "scheduler": "normal", "denoise": 0.7}},
+  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["1", 2]}},
+  "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "Minuet/packaging"}}
+}

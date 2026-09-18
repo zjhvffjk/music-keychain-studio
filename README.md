@@ -18,6 +18,30 @@
 
 ## 功能一览
 
+### 新增：专辑包装工坊
+
+启动后，从首页进入「专辑包装工坊」，或访问 `http://127.0.0.1:8765/packaging`。
+按歌手名搜索公开封面 → 选择 → 生成整套包装 → 下载单张 PNG 或整套 ZIP。
+也支持专辑名搜索和本地上传。专辑名可能同名，选图时请核对歌手；推荐先按歌手搜索。
+
+- **封面衍生排版**：直接运行本地代码，提取色板与明暗风格，生成正面、封底、侧脊、CD、内页跨页、海报、明信片和总览。此模式不创作新的摄影场景。
+- **AI 延展画面 + 包装排版**：调用本地 ComfyUI，以封面为参考创作一张延展画面，再用于同系列包装。不是为每个部件单独生成一张摄影图。
+- 每个 PNG 都有非官方概念标识；ZIP 附来源与设计说明，歌词和曲目区留白。效果图不等于印刷文件。
+- 任务保存在 `outputs/专辑包装/<任务编号>/`，刷新可恢复，重启后仍可查看并下载已完成作品。中断任务显示中断，不自动重复提交 AI。
+
+ComfyUI 默认地址是 `http://127.0.0.1:8188`，可通过 `MINUET_COMFY_URL` 改为其他**本机**端口。
+本机须有兼容的图片模型和工作流；仅有视频模型不够。当前接入提供两种配置方法：
+
+1. 安装了完整 SD 1.5 / SDXL checkpoint 时，将 `MINUET_COMFY_CHECKPOINT` 设为 ComfyUI 模型列表中的完整文件名，使用内置 768×768 img2img 工作流。
+2. 将自己的**API 格式**图片工作流保存为 `config/packaging_workflow.json`，或用 `MINUET_COMFY_WORKFLOW` 指定文件。LoadImage 输入用 `{{cover}}`，正向提示词用 `{{prompt}}`，可选种子用 `{{seed}}`，结果接 SaveImage。参考 `config/packaging_workflow.example.json`；示例中的模型名必须换成已安装且兼容的模型。
+
+无模型或配置缺失时，AI 按钮不可用并提示原因；不会静默改成本地排版。不自动下载模型，不需要云端密钥。
+单次 AI 等待上限 15 分钟；超时后原任务可能仍在 ComfyUI 队列里，请检查后再重试，工作台不会打断其他任务。
+自定义工作流作为本机可信配置执行，请只使用已审查的本地节点。API 对接依据 [ComfyUI 服务端文档](https://docs.comfy.org/development/comfyui-server/comms_routes)。
+
+验证：`python -m unittest discover -s tests -p test_packaging.py -v`。
+测试涵盖本地生成、持久化、ZIP、来源校验、HTTP 边界和模拟 ComfyUI 成功/失败；实际 AI 推理仍需本机图片模型。
+
 | 功能 | 说明 | 脚本 |
 |---|---|---|
 | 播放界面 | 复刻音乐 App 深色播放页，**1181×1968 @1000DPI = 30×50mm** 实物比例 | `tools/make_player.py` |

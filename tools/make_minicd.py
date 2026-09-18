@@ -29,7 +29,7 @@
   python make_minicd.py --dir ... --tracks "A;B;C" # 手动给曲目（空则自动联网反查）
   python make_minicd.py --dir ... --style retro --mood dreamy   # 手动指定设计语言
 
-尺寸规格：源自卖家模板图读数（盘面 Ø40 / 封面 82×41 / 封底 108.4×38）。
+尺寸规格：111.2 固定结构（用户 2026-09-19 拍板，唯一真源 tools/spec_minicd.py）。
 毫米级差 1mm 就装不进盒，**试装后用 --scale 微调**（如 --scale 1.02 放大 2%）。
 """
 import argparse
@@ -39,6 +39,8 @@ import os
 import sys
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+
+import spec_minicd as SP   # 尺寸唯一真源
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -65,8 +67,8 @@ else:
 DISC_D = 40.0          # 盘面直径
 DISC_HOLE = 5.0        # 中心孔直径
 COVER_W, COVER_H = 82.0, 41.0
-BACK_SEGS = (4.4, 48.0, 4.0, 4.0, 48.0)   # 右侧封/封底/左侧封/背脊/内盘底
-BACK_W = sum(BACK_SEGS)                    # 108.4
+BACK_SEGS = tuple(SP.BACK_SEGS)   # 右侧封/封底/左侧封/左侧封背面/内盘底（spec 真源）
+BACK_W = sum(BACK_SEGS)                    # 111.2
 BACK_H = 38.0
 
 PAGES = {"a4l": (297.0, 210.0), "a4p": (210.0, 297.0)}
@@ -193,7 +195,7 @@ def _solid_block(cover_im, w_px, h_px, album, artist):
 
 
 def make_back_strip(back_im, tray_im, w_px, h_px, cover_im, album, artist,
-                    D=None, tracks=None, seed=0):
+                    D=None, tracks=None, seed=0, company=""):
     """[右侧封][封底][左侧封][背脊][内盘底] 一条连续展开图。
 
     封底与内盘底缺件时走**封面衍生设计**（design_back / design_tray）；
@@ -209,7 +211,8 @@ def make_back_strip(back_im, tray_im, w_px, h_px, cover_im, album, artist,
     if back_im is not None:
         b = cover_crop(back_im, p[1], h_px)
     elif use_dp:
-        b = DP.design_back(cover_im, p[1], h_px, D, album, artist, tracks, seed)
+        b = DP.design_back2(cover_im, p[1], h_px, D, album, artist, tracks,
+                            seed, company=company)
     else:
         b = _solid_block(cover_im, p[1], h_px, album, artist)
     out.paste(b, (p[0], 0))
@@ -218,7 +221,7 @@ def make_back_strip(back_im, tray_im, w_px, h_px, cover_im, album, artist,
     if tray_im is not None:
         t = cover_crop(tray_im, p[4], h_px)
     elif use_dp:
-        t = DP.design_tray(cover_im, p[4], h_px, D, album, artist)
+        t = DP.design_tray2(cover_im, p[4], h_px, D, album, artist, company)
     else:
         t = _solid_block(cover_im, p[4], h_px, album, artist)
     out.paste(t, (p[0] + p[1] + p[2] + p[3], 0))
@@ -227,7 +230,10 @@ def make_back_strip(back_im, tray_im, w_px, h_px, cover_im, album, artist,
     out.paste(_edge_stretch(b, p[0], h_px), (0, 0))                  # 右侧封 ← 封底左缘
     out.paste(_edge_stretch(t, p[2] + p[3], h_px), (p[0] + p[1], 0))  # 左侧封+背脊 ← 内盘底左缘
 
-    assert out.width == w_px, (out.width, w_px)
+    # 各段逐 0.1mm 四舍五入后求和可能与 BACK_W 取整差 ±1px（如 111.2mm：
+    # sum(各段)=1314 vs round(111.2)=1313）。统一对齐到调用方给的 w_px，避免断言崩。
+    if out.width != w_px or out.height != h_px:
+        out = out.resize((w_px, h_px), Image.LANCZOS)
     return out
 
 
@@ -259,7 +265,7 @@ _dpi = [300]
 
 
 def build_page(parts_meta, dpi, page="a4l", max_sets=0, artist="", album="",
-               D=None, tracks=None, seed=0):
+               D=None, tracks=None, seed=0, company=""):
     """parts_meta: {part: (Image, is_fallback)}，缺 key 视为完全缺失。
 
     D = design_parts.read_design(cover) 得到的设计语言；给了它，缺件走衍生设计。
@@ -282,7 +288,7 @@ def build_page(parts_meta, dpi, page="a4l", max_sets=0, artist="", album="",
         disc = disc_face(src, disc_d, hole_d)
     elif cover_im is not None and DP is not None and D is not None:
         # 封面裁圆 + 银色径向分光（同色系，比贴个白圈自然）
-        disc = DP.design_disc(cover_im, disc_d, hole_d, D, album, artist)
+        disc = DP.design_disc2(cover_im, disc_d, hole_d, D, album, artist, company)
     elif cover_im is not None:
         disc = disc_face(cover_im, disc_d, hole_d)
     else:
@@ -293,8 +299,8 @@ def build_page(parts_meta, dpi, page="a4l", max_sets=0, artist="", album="",
     inner_im = (parts_meta.get("inner") or (None,))[0]
     if inner_im is None and cover_im is not None:
         if DP is not None and D is not None:
-            inner_im = DP.design_inner(cover_im, fold_w // 2, fold_h, D,
-                                       album, artist, tracks)
+            inner_im = DP.design_inner2(cover_im, fold_w // 2, fold_h, D,
+                                        album, artist, tracks)
         else:
             inner_im = fb_inner(cover_im, fold_w // 2, fold_h)
     if cover_im is None:
@@ -306,7 +312,7 @@ def build_page(parts_meta, dpi, page="a4l", max_sets=0, artist="", album="",
     back_im = (parts_meta.get("back") or (None,))[0]
     tray_im = (parts_meta.get("tray") or (None,))[0]
     strip = make_back_strip(back_im, tray_im, strip_w, strip_h, cover_im,
-                            album, artist, D, tracks, seed)
+                            album, artist, D, tracks, seed, company)
 
     # --- 三列布局，列内叠 N 个，成套取 min ---
     cols = [(disc, disc_d), (fold, fold_w), (strip, strip_w)]
@@ -461,11 +467,13 @@ def run_batch(args):
         _dpi[0] = args.dpi
         with Image.open(cov) as im:
             cov_im = im.convert("RGB")     # 复制一份，及时释放文件句柄
-        D = resolve_design(cov_im, args)
+        D = resolve_design(cov_im, args, bands=(a.get("safe_bands")
+                                                or args_safe_bands(args)))
         tr = resolve_tracks(args, name, artist, a.get("id"))
         page_im, sets, _ = build_page(
             {"cover": (cov_im, False)},
-            args.dpi, args.page, args.sets, artist, name, D, tr, i)
+            args.dpi, args.page, args.sets, artist, name, D, tr, i,
+            a.get("company") or getattr(args, "company", ""))
         fn = f"打印拼版-{i:02d}-{_safe_name(name)}.jpg"
         page_im.save(os.path.join(args.out, fn), quality=93)
         made.append({"file": fn, "album": name, "sets": sets, "cover": cov,
@@ -508,6 +516,12 @@ def main():
                     help="手动指定曲目，分号分隔（如 \"A;B;C\"）；留空则联网反查")
     ap.add_argument("--no-tracks", action="store_true",
                     help="不联网反查曲目（离线/批量加速用）")
+    ap.add_argument("--company", default="",
+                    help="厂牌名（印在封底/侧标；批量模式自动取 albums.json 的 company）")
+    ap.add_argument("--safe-bands", default="",
+                    help='配件取景的可用横带 "top,bottom"，如标题占顶部 30% 则 "0.30,1.0"'
+                         "（先跑 tools/audit_covers.py 肉眼定）；"
+                         "批量模式可改在 albums.json 每张专辑加 safe_bands 字段覆盖")
     ap.add_argument("--style", default="",
                     choices=["", "minimalist", "retro", "bold"],
                     help="设计风格覆盖（默认从封面自动推断）")
@@ -581,7 +595,8 @@ def main():
 
     page_im, sets, previews = build_page(
         {k: (v, False) for k, v in need_imgs.items()},
-        args.dpi, args.page, args.sets, args.artist, args.album, D, tr)
+        args.dpi, args.page, args.sets, args.artist, args.album, D, tr, 0,
+        args.company)
 
     os.makedirs(args.out, exist_ok=True)
     tag = f"{args.album or 'album'}"

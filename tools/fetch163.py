@@ -224,6 +224,186 @@ def album_detail(album_id):
     return alb, songs
 
 
+_LRC_TAG = re.compile(r"\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]")
+
+
+# 🔴 制作名单里的字段名。**必须整块丢掉**：网易云的 LRC 开头常有一整段
+#    「词：林乔/黄然」「曲：都智文」「制作人：林乔」「编曲：…」「和声：…」，
+#    这些行冒号后面**有内容**，只按「结尾是冒号」过滤根本拦不住 ——
+#    实测《蓄谋已久的爱》《我的地盘》《你是迟来的欢喜》前 10 行全是制作名单，
+#    会被当成歌词印在歌词页上，还可能被 pick_quote 挑去当「手写金句」。
+_CREDIT_WORDS = (
+    # 单字关键字：只做**精确匹配**（否则「曲终人散：…」会被误杀）
+    # ⚠️ 「合/女/男」是**对唱标记**不是制作名单，绝不能放进来 ——
+    #    放进来「合：La la la…」整行会被当名单丢掉，少一句词。
+    "词", "曲", "鼓",
+    # 双字以上：允许「音乐监制」「总制作人」这种前缀，按 endswith 匹配
+    "作词", "作曲", "词曲", "编曲", "制作人", "制作", "出品", "监制", "总监",
+    "混音", "母带", "录音", "吉他", "贝斯", "贝司", "键盘", "和声", "合声",
+    "配唱", "人声", "和弦", "弦乐", "统筹", "企划", "策划", "宣传", "发行",
+    "公司", "助理", "行政", "经纪", "乐器", "编写", "视觉", "摄影", "美术",
+    "设计", "插画", "造型", "妆发", "导演", "封面", "文案",
+    # 乐器/编制（网易云名单里非常常见，且总以「小提琴 : xxx」形式出现）
+    "钢琴", "小提琴", "中提琴", "大提琴", "长号", "小号", "圆号", "萨克斯",
+    "班卓琴", "口琴", "二胡", "古筝", "琵琶", "竖琴", "手风琴", "打击乐",
+    "合成器", "电吉他", "木吉他", "笛", "鼓组", "节奏", "合唱", "演唱", "团队",
+    "后期", "工程", "剪辑", "混录", "缩混",
+    # 职能（「人声编辑」这种是「人声」+「编辑」组合，必须单独列「编辑」）
+    "编辑", "校对", "翻译", "监唱", "配器", "改编", "指导", "声乐", "版权",
+    "授权", "现场", "唱", "总监制",
+)
+# 英文/缩写字段名（「SCRATCH：郭正男」「With : 阿信@五月天」这种，中文词表拦不住）
+_CREDIT_EN = {
+    "OP", "SP", "PV", "MV", "DJ", "VJ", "MC", "SCRATCH", "MIX", "MIXING",
+    "MASTER", "MASTERING", "ARRANGE", "ARRANGEMENT", "GUITAR", "BASS",
+    "DRUM", "DRUMS", "PIANO", "KEYBOARD", "STRINGS", "CHORUS", "HARMONY",
+    "PRODUCER", "COMPOSER", "LYRICIST", "ENGINEER", "RECORD", "RECORDING",
+    "EDIT", "EDITOR", "ART", "DESIGN", "PHOTO", "DIRECTOR", "PROGRAM",
+    "WITH", "FEAT", "FEATURING", "VOCAL", "VOCALS", "PROD", "MIXED",
+}
+_CREDIT_RE = re.compile(r"^\s*(?:%s)\s*[:：]\s*\S" % "|".join(map(re.escape, _CREDIT_WORDS)))
+# 歌曲署名行：「蓄谋已久的爱 (《你是迟来的欢喜》电视剧片头曲) - 颜人中」
+_ATTR_RE = re.compile(r"[（(]?\s*《.{1,40}》.{0,30}(?:片头曲|片尾曲|插曲|主题曲|宣传曲|"
+                      r"推广曲|原声带|插曲|概念曲)")
+# 无歌词时的占位提示
+_PLACEHOLDER_RE = re.compile(r"纯音乐|此歌曲为没有填词的纯音乐|请欣赏|"
+                             r"未经许可.{0,10}(翻唱|使用|复制)")
+
+
+def _is_credit_line(t: str, title: str = "") -> bool:
+    """判断一行是不是「制作名单 / 歌曲署名 / 占位提示」，而不是歌词。
+
+    🔴 判据必须看**冒号前面的字段名**，不能只 match 行首关键字 ——
+    实测有「音乐监制：连雅雯」「音乐统筹：张安琪」「音乐发行：张安琪」，
+    行首是「音乐…」，按行首匹配全部漏过，整块名单照样印上歌词页。
+    """
+    head = re.split(r"[:：]", t, 1)[0].strip()
+    # 🔴 结构判据：真歌词几乎不会写「两侧带空格的半角冒号」，
+    #    而制作名单**清一色**是 `录音师 : 杨瑞代` `小提琴 : 陈锐` `长号 : 鄧世伟`
+    #    这种。靠枚举字段名永远追不上（录音师/混音师/母带工程师/班卓琴/萨克斯…），
+    #    加这一条才收得干净。
+    if " : " in t:
+        return True
+    # ⚠️ 上限要放到 10：英文/缩写字段名会比中文长（`SCRATCH：郭正男` 是 7 个字），
+    #    卡 6 会把 SCRATCH 整类漏掉。真正拦住误杀的是下面的关键字 endswith，
+    #    不是这个长度阈值。
+    if head and len(head) <= 10 and len(t) > len(head) + 1:
+        hu = head.upper()
+        if hu in _CREDIT_EN or hu.rstrip(" .") in _CREDIT_EN:
+            return True
+        # 「录音师／混音室／录音棚／制作组」这类在字段名后加一个职能后缀，
+        # 去掉尾巴再比，才不会被「师/室/棚」挡住。
+        h2 = re.sub(r"[师室员组部团棚房间社队系]$", "", head)
+        for w in _CREDIT_WORDS:
+            # 单字关键字（词/曲/鼓/合）只认精确匹配：否则「曲终人散：…」会被误杀
+            if head == w or (len(w) >= 2 and (head.endswith(w) or h2.endswith(w))):
+                return True
+    if _ATTR_RE.search(t):
+        return True
+    if _PLACEHOLDER_RE.search(t):
+        return True
+    # 「歌名 - 歌手」式的署名行。
+    # 🔴 这条启发式**必须加汉字护栏**：英文歌词里 "I love you - but I don't know"
+    #    这种也含 " - "，无条件丢会误杀真歌词。署名行是中文的、且不带句读。
+    if (" - " in t and re.search(r"[\u4e00-\u9fff]", t)
+            and not re.search(r"[，。！？,.!?；;]", t)):
+        if title and t.startswith(title):
+            return True
+        if len(t) <= 40:
+            return True
+    return False
+
+
+_DUET_RE = re.compile(r"^[（(]\s*([^：:）)]{1,12})\s*[:：]\s*(.+?)\s*[）)]$")
+# 不带括号的对唱标注：「小派：You always…」「Jay：这世界有些事…」
+# 🔴 必须双向约束才敢剥：要么字段名是**纯拉丁**（Jay/JJ…），
+#    要么字段名是中文短名**且冒号后紧接着拉丁文**（小派：You…）。
+#    只按「短字段名+冒号」剥会把真歌词「她说：我不爱你了」剥成「我不爱你了」。
+_DUET_BARE_LATIN_RE = re.compile(r"^([A-Za-z][A-Za-z0-9 .&'\-]{0,7})\s*[:：]\s*(\S.*)$")
+_DUET_BARE_MIX_RE = re.compile(r"^([\u4e00-\u9fff]{1,4})\s*[:：]\s*([A-Za-z0-9].{7,})$")
+
+
+def _clean_lyric_line(t: str) -> str:
+    """把「（周杰伦：这个时候）」「小派：You always…」这类**对唱标注**剥出来。
+
+    直接丢掉整行会少一句词；不改又会把歌手名印进歌词页。
+    """
+    m = _DUET_RE.match(t)
+    if m:
+        return m.group(2).strip()
+    m = _DUET_BARE_LATIN_RE.match(t)
+    if m and m.group(1).upper() not in _CREDIT_EN:
+        return m.group(2).strip()
+    m = _DUET_BARE_MIX_RE.match(t)
+    if m:
+        return m.group(2).strip()
+    return t
+
+
+def song_lyrics(song_id, title: str = ""):
+    """取单首歌的歌词纯文本行（去掉 LRC 时间戳 + 制作名单块）。
+
+    实测 `/api/song/lyric` 免登录可用（晴天等老歌返回完整歌词），
+    但纯音乐/新歌可能只有 [00:05.00]纯音乐，请欣赏 —— 交给上层过滤。
+    """
+    try:
+        d = get_json(f"{API}/song/lyric",
+                     {"id": song_id, "lv": -1, "kv": -1, "tv": -1})
+    except Exception:
+        return []
+    lrc = ((d.get("lrc") or {}).get("lyric")) or ""
+    if not lrc:
+        return []
+    out = []
+    for raw in lrc.splitlines():
+        t = _LRC_TAG.sub("", raw).strip()
+        # 对唱标记（「周杰伦：」这种只有歌手的行）不是歌词
+        if not t or t.endswith("：") or t.endswith(":"):
+            continue
+        # 🔴 必须先判名单、再剥对唱标注。顺序反了会出事：
+        #    「吉他：KenChan陈恩健」会被当成「中文短名+拉丁名」的对唱标注，
+        #    剥成「KenChan陈恩健」贴进歌词页（实测《昨天》）。
+        if _is_credit_line(t, title):
+            continue
+        c = _clean_lyric_line(t)
+        if c != t:
+            if _is_credit_line(c, title):
+                continue
+            t = c
+        if t:
+            out.append(t)
+    return out
+
+
+def album_lyrics(album_name: str, artist: str = "", album_id=None,
+                 max_songs: int = 4, album_detail_fn=None):
+    """取某专辑前几首的歌词，返回 ``[(歌名, [歌词行]), …]``。
+
+    拿不到（离线/接口抽风）返回 ``[]``，上层必须能降级 ——
+    设计引擎缺歌词时要退回「金句页」而不是崩掉。
+    """
+    songs = []
+    if album_id is not None:
+        try:
+            _, songs = album_detail(album_id)
+        except Exception:
+            songs = []
+    if not songs:
+        return []
+    picked = [s for s in songs if s.get("id") and s.get("name")]
+    # 跳过 Intro/纯音乐这类没词的
+    picked = [s for s in picked if not re.search(r"intro|前奏|纯音乐", s["name"], re.I)]
+    out = []
+    for s in picked[:max_songs]:
+        # 传 title 让「歌名 - 歌手」署名行能被精确识别
+        lines = song_lyrics(s["id"], s["name"])
+        # 万一还有漏网的制作信息，这里再兜一次（判据与 song_lyrics 同一套）
+        body = [l for l in lines if not _is_credit_line(l, s["name"])]
+        if len(body) >= 4:
+            out.append((s["name"], lines))
+    return out
+
+
 def _album_id_from_artist(artist: str, album_name: str):
     """从歌手专辑列表里找同名专辑 id。
 
