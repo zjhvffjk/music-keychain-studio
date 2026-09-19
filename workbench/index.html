@@ -11,8 +11,19 @@
   --fg:#1b1e25; --fg2:#414855; --dim:#5f6672; --dim2:#666b74;
   --red:#e11d38; --green:#0d854b; --amber:#b45309;
   --r:12px; --r2:8px;
+  /* ---- 设计令牌（评审补丁 A：系统化解散落的魔法数字）---- */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-5:20px; --space-6:24px; --space-8:32px;
+  --fs-xs:11px; --fs-sm:12.5px; --fs-base:13px; --fs-md:14px; --fs-lg:15px;
+  --shadow-sm:0 1px 2px rgba(20,25,40,.05);
+  --shadow-md:0 4px 12px rgba(20,25,40,.10);
+  --shadow-lg:0 8px 22px rgba(20,25,40,.12);
+  --focus-ring:0 0 0 3px rgba(225,29,56,.32);
+  --tr-fast:150ms ease; --tr:200ms ease; --tr-slow:300ms ease;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* 评审补丁 B：全局键盘焦点环（纯键盘用户可定位焦点，WCAG 2.4.7） */
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 html,body{height:100%}
 body{
   background:var(--bg); color:var(--fg); overflow:hidden;
@@ -96,7 +107,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .exitbox .eb button:disabled{opacity:.4;cursor:default}
 .exitbox .eb em{display:block;font-size:11px;font-weight:400;color:var(--dim2);
                 font-style:normal;margin-top:3px;line-height:1.4}
-.exitbox .eb button.on em{color:#bf6a77}
+.exitbox .eb button.on em{color:#9a3f53}
 .albCur{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim2);
         padding:8px 11px;background:#f7f8fa;border:1px solid var(--line);
         border-radius:8px;margin-bottom:12px}
@@ -126,7 +137,7 @@ button.btn{
   background:var(--card2);color:var(--fg2);font-family:inherit;font-size:12.5px;
   cursor:pointer;transition:.16s;white-space:nowrap;font-weight:500;
 }
-button.btn:hover{border-color:#aeb5c0;color:var(--fg)}
+button.btn:hover{border-color:#aeb5c0;color:var(--fg);transform:translateY(-1px)}
 button.btn:disabled{opacity:.4;cursor:not-allowed}
 button.go{
   width:100%;padding:13px;border:0;border-radius:10px;margin-top:4px;
@@ -145,6 +156,7 @@ button.go:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none
   padding:7px 13px;border:1px solid var(--line);border-radius:20px;
   background:transparent;color:var(--dim);font-size:12.5px;cursor:pointer;
   font-family:inherit;transition:.16s;
+  min-height:32px;display:inline-flex;align-items:center;justify-content:center;
 }
 .chips button:hover{border-color:var(--line2);color:var(--fg2)}
 .chips button.on{background:#fde8ec;border-color:#f0a9b6;color:#c8102e;font-weight:600}
@@ -302,13 +314,15 @@ body.mode-album #vinylBox{display:none}
   gap:15px;align-content:start}
 .albC{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;
   cursor:pointer;transition:.16s;display:flex;flex-direction:column;min-width:0}
-.albC:hover{border-color:#e58ba0;box-shadow:0 8px 22px rgba(20,25,40,.10);transform:translateY(-2px)}
+.albC:hover{border-color:#e58ba0;box-shadow:0 5px 14px rgba(20,25,40,.08);transform:translateY(-2px)}
 .albC.sel{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
 .albC .cv{position:relative;aspect-ratio:1;background:#e8eaee;overflow:hidden}
 .albC .cv img{width:100%;height:100%;object-fit:cover;display:block}
 .albC .ck{position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:var(--red);
   cursor:pointer;margin:0;z-index:2;opacity:0;transition:.15s}
 .albC:hover .ck,.albC.sel .ck{opacity:1}
+/* 评审补丁 E：触屏设备无 hover，复选框默认常显，避免多选只能靠盲点 */
+@media (hover:none){.albC .ck{opacity:1}}
 .albC .dt{padding:9px 11px 11px;display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .albC .nm{font-size:12.5px;font-weight:600;line-height:1.42;overflow:hidden;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -384,7 +398,7 @@ main.studio-on .content,main.studio-on .albStage{display:none}
   box-shadow:0 1px 2px rgba(20,25,40,.05);
 }
 .item:hover{border-color:var(--line2);transform:translateY(-2px);
-  box-shadow:0 10px 26px rgba(20,25,40,.13)}
+  box-shadow:0 6px 16px rgba(20,25,40,.10)}
 .item .top{display:flex;gap:12px;padding:13px 13px 11px;align-items:center}
 .item .rk{width:24px;height:24px;border-radius:7px;background:#eef0f4;color:var(--dim);
   font-size:11px;display:flex;align-items:center;justify-content:center;flex:none;
@@ -419,7 +433,8 @@ main.studio-on .content,main.studio-on .albStage{display:none}
   font-variant-numeric:tabular-nums}
 .mini{padding:5px 10px;border:1px solid var(--line2);border-radius:6px;
   background:transparent;color:var(--dim);font-size:11px;cursor:pointer;
-  text-decoration:none;font-family:inherit;transition:.15s;white-space:nowrap}
+  text-decoration:none;font-family:inherit;transition:.15s;white-space:nowrap;
+  min-height:28px;display:inline-flex;align-items:center}
 .mini:hover{background:var(--card2);color:var(--fg);border-color:#aeb5c0}
 
 /* 日志 */
@@ -469,10 +484,16 @@ main.studio-on .content,main.studio-on .albStage{display:none}
   display:inline-block;vertical-align:-2px;margin-right:7px}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* 评审补丁 F：单断点 → 三断点 */
+@media(max-width:1280px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+  .albGrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+}
 @media(max-width:1080px){
   .app{flex-direction:column}
-  aside{width:100%;max-height:52vh;border-right:0;border-bottom:1px solid var(--line)}
+  aside{width:100%;max-height:46vh;border-right:0;border-bottom:1px solid var(--line)}
 }
+/* （已撤）1600px 限宽居中规则 —— 用户要求保持通栏布局 */
 /* ---------------- 作品库（B3） ----------------
    任务清单来自后端 /api/jobs（读磁盘上的 meta.json），所以重启工作台后
    上次做的东西依然在这里，能回看、能重下、能删。 */
@@ -507,8 +528,8 @@ main.studio-on .content,main.studio-on .albStage{display:none}
 .librow .ops{display:flex;gap:7px;flex:none;flex-wrap:wrap;justify-content:flex-end;
      max-width:290px}
 .librow .ops button{font-family:inherit}
-.librow .ops .del{border-color:#eec3c3;color:#b82323}
-.librow .ops .del:hover{border-color:#d99;background:#fdf3f3}
+.librow .ops .del{border-color:var(--red);background:var(--red);color:#fff}
+.librow .ops .del:hover{border-color:#c41630;background:#c41630}
 .libdet{border-top:1px dashed var(--line);padding:12px 14px;background:#fafbfc}
 .libdet .dt{font-size:11.5px;color:var(--dim2);margin:2px 0 8px}
 .libdet .ims{display:flex;gap:10px;flex-wrap:wrap}
@@ -554,6 +575,157 @@ main.studio-on .content,main.studio-on .albStage{display:none}
 .librow .mi{cursor:pointer}
 .librow.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
 .librow.on .mi .t{color:#a30d29}
+
+/* ============ 视觉质感升级（2026-09-19 v2，UI Designer）============
+   目标：高级感（层次 / 毛玻璃 / 品牌标记 / 分层柔影），不改结构 / 位置 / 宽度，整段可回滚。 */
+/* 1. 整体氛围：极淡冷暖渐变 + 左上极淡红晕，营造空间纵深 */
+body{background:
+  radial-gradient(1100px 560px at 10% -10%,rgba(225,29,56,.05),transparent 60%),
+  linear-gradient(180deg,#f7f8fb 0%,#edeff4 100%)}
+/* 2. 侧栏浮起：去右边框，改用向右柔影制造层次 */
+aside{border-right:0;box-shadow:1px 0 0 var(--line),12px 0 44px -22px rgba(16,18,40,.30)}
+/* 3. 品牌区 + Logo 标记（圆点 → 渐变方块标） */
+.brand{background:linear-gradient(135deg,#ffffff 0%,#fff5f7 100%);position:relative;
+  border-bottom:1px solid rgba(228,230,235,.7)}
+.brand::after{content:"";position:absolute;left:20px;right:20px;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:.35}
+.dot{width:22px;height:22px;border-radius:7px;flex:none;
+  background:linear-gradient(145deg,#ff6278 0%,#e11d38 58%,#b30d27 100%);
+  box-shadow:0 4px 11px rgba(225,29,56,.38),inset 0 1px 1px rgba(255,255,255,.5)}
+.brand h1{font-size:16px;font-weight:700;letter-spacing:.5px}
+.brand p{color:var(--dim);letter-spacing:.3px}
+/* 4. 模式切换：容器内凹感，选中态红色药丸 + 投影 */
+.tabs{box-shadow:inset 0 1px 2px rgba(16,18,40,.05)}
+.tabs button.on{background:linear-gradient(135deg,#e11d38,#c8102e);color:#fff;
+  box-shadow:0 4px 12px rgba(225,29,56,.32)}
+.tabs button.on:hover{color:#fff}
+/* 5. 主区工具条：毛玻璃 + 饱和 + 柔影，高级悬浮感 */
+.bar{background:rgba(255,255,255,.70);backdrop-filter:blur(18px) saturate(1.5);
+  -webkit-backdrop-filter:blur(18px) saturate(1.5);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 10px 26px -18px rgba(16,18,40,.4);
+  border-bottom:1px solid rgba(228,230,235,.7)}
+.bar .acts .btn{border-radius:9px;transition:transform .15s,background .15s,border-color .15s,box-shadow .15s}
+.bar .acts .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,18,40,.10)}
+/* 6. 内容卡片：分层柔影 + 大圆角 + 悬浮抬升（红调阴影） + 顶部高光 */
+.item{border-color:#e8eaef;border-radius:16px;
+  box-shadow:0 1px 2px rgba(16,18,40,.05),0 12px 30px -16px rgba(16,18,40,.18)}
+.item::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;border-radius:16px 16px 0 0;
+  background:linear-gradient(90deg,var(--red),#f06b80);opacity:0;transition:.22s}
+.item:hover{border-color:#e6c3cc;transform:translateY(-4px);
+  box-shadow:0 2px 6px rgba(16,18,40,.07),0 20px 44px -18px rgba(225,29,56,.26)}
+.item:hover::before{opacity:1}
+/* 7. 专辑卡：分层柔影 + 大圆角 + 悬浮抬升 + 选中红晕 */
+.albC{border-color:#e8eaef;border-radius:16px;
+  box-shadow:0 1px 2px rgba(16,18,40,.05),0 10px 26px -16px rgba(16,18,40,.16)}
+.albC:hover{border-color:#eea3b2;transform:translateY(-4px);
+  box-shadow:0 2px 6px rgba(16,18,40,.07),0 18px 40px -18px rgba(225,29,56,.24)}
+.albC.sel{border-color:var(--red);box-shadow:0 0 0 1px var(--red),0 12px 30px -12px rgba(225,29,56,.30)}
+/* 8. 歌手头像渐变环 */
+.acard img{box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(225,29,56,.20)}
+/* 9. 数据源 chip 选中态柔化渐变 */
+.chips button.on{background:linear-gradient(135deg,#fde8ec,#fbdde4);box-shadow:0 3px 8px rgba(225,29,56,.16)}
+/* 10. 表单聚焦：红色柔光环，强化品牌 & 可达性 */
+input:focus,select:focus{border-color:var(--red);background:#fff;
+  box-shadow:0 0 0 3px rgba(225,29,56,.14)}
+/* 11. 次级按钮 hover 底色微染 */
+button.btn:hover{background:#f3f4f7}
+/* 12. 滚动条更细腻（留白边） */
+::-webkit-scrollbar-thumb{background:#c2c8d2;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#aab1bd;border:2px solid transparent;background-clip:padding-box}
+/* 13. 出口② / 作品库选中态高亮更醒目 */
+.exitbox .eb button.on{background:linear-gradient(135deg,#fdf2f4,#fce6ea);box-shadow:0 3px 9px rgba(225,29,56,.14)}
+.libcat button.on{box-shadow:0 3px 9px rgba(225,29,56,.28)}
+
+/* ============ 深色模式 + 卡片入场动画（2026-09-19，UI Designer）============
+   切换：顶栏「🌙 暗 / ☀ 亮」按钮，状态存 localStorage，并跟随系统偏好。 */
+html[data-theme="dark"]{
+  --bg:#0e1014; --panel:#16181d; --card:#1a1d23; --card2:#21252c;
+  --line:#272c34; --line2:#363c46;
+  --fg:#e9ebef; --fg2:#c3c9d2; --dim:#969cab; --dim2:#838b99;
+  --red:#ff3852; --green:#1fbf75; --amber:#f5a623;
+}
+/* 整体氛围：深色冷调 + 左上极淡红晕 */
+html[data-theme="dark"] body{
+  background:
+    radial-gradient(1200px 620px at 8% -8%,rgba(255,56,82,.07),transparent 60%),
+    linear-gradient(180deg,#111419 0%,#0c0e12 100%);
+  color:var(--fg);
+}
+/* 侧栏：暗面板 + 向右柔影 */
+html[data-theme="dark"] aside{background:var(--panel);
+  box-shadow:1px 0 0 var(--line),14px 0 48px -22px rgba(0,0,0,.7)}
+/* 品牌区 */
+html[data-theme="dark"] .brand{background:linear-gradient(135deg,#1a1d23 0%,#211419 100%);
+  border-bottom:1px solid rgba(255,255,255,.05)}
+/* 顶栏毛玻璃：暗色半透 */
+html[data-theme="dark"] .bar{
+  background:rgba(18,20,25,.72);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 26px -18px rgba(0,0,0,.6);
+  border-bottom:1px solid rgba(255,255,255,.06)}
+html[data-theme="dark"] .bar .acts .btn{color:var(--dim);border-color:var(--line2)}
+html[data-theme="dark"] .bar .acts .btn:hover{background:rgba(255,255,255,.07);color:var(--fg)}
+/* 内容卡片 / 专辑卡：暗底 + 分层柔影 + 红调微光 */
+html[data-theme="dark"] .item{background:var(--card);border-color:var(--line);
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.6)}
+html[data-theme="dark"] .item:hover{border-color:#5a2d36;
+  box-shadow:0 2px 6px rgba(0,0,0,.5),0 22px 46px -18px rgba(255,56,82,.22)}
+html[data-theme="dark"] .item .ft{border-top-color:var(--line)}
+html[data-theme="dark"] .albC{background:var(--card);border-color:var(--line);
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -18px rgba(0,0,0,.55)}
+html[data-theme="dark"] .albC:hover{border-color:#6a3340;
+  box-shadow:0 2px 6px rgba(0,0,0,.5),0 20px 42px -18px rgba(255,56,82,.2)}
+html[data-theme="dark"] .albC.sel{border-color:var(--red);
+  box-shadow:0 0 0 1px var(--red),0 14px 32px -12px rgba(255,56,82,.3)}
+/* 表单项：暗底 */
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{
+  background:#1c2027;color:var(--fg);border-color:var(--line2)}
+html[data-theme="dark"] input:focus,html[data-theme="dark"] select:focus{
+  background:#22272f;box-shadow:0 0 0 3px rgba(255,56,82,.22)}
+/* 占位 / 浅底区块统一转暗 */
+html[data-theme="dark"] .slist,html[data-theme="dark"] .logs,
+html[data-theme="dark"] .nts,html[data-theme="dark"] .drop,
+html[data-theme="dark"] .libsel,html[data-theme="dark"] .selbar{background:var(--card);border-color:var(--line)}
+html[data-theme="dark"] .srow{background:#15181d;border-bottom-color:var(--line)}
+html[data-theme="dark"] .srow:hover{background:#1d2128}
+html[data-theme="dark"] .srow.on{background:#2a161c}
+html[data-theme="dark"] .srow.alb{background:var(--card)}
+html[data-theme="dark"] .srow.alb:hover{background:var(--card);border-color:#6a3340}
+html[data-theme="dark"] .srow.alb.sel,html[data-theme="dark"] .srow.alb.on{background:#2a161c;border-color:var(--red)}
+html[data-theme="dark"] .em-src,html[data-theme="dark"] .acard .nm .src,
+html[data-theme="dark"] .albEmpty code{background:#23272f;color:var(--dim)}
+html[data-theme="dark"] .item .rk{background:#23272f;color:var(--dim)}
+html[data-theme="dark"] .shots .sh,html[data-theme="dark"] .acard img,
+html[data-theme="dark"] .albC .cv{background:#23272f}
+html[data-theme="dark"] .mini:hover{background:rgba(255,255,255,.06);color:var(--fg);border-color:var(--line2)}
+html[data-theme="dark"] .prog{background:var(--line)}
+html[data-theme="dark"] .chips button.on{background:rgba(255,56,82,.2);box-shadow:0 3px 8px rgba(255,56,82,.22)}
+html[data-theme="dark"] .exitbox .eb button.on{background:rgba(255,56,82,.18);box-shadow:0 3px 9px rgba(255,56,82,.2)}
+html[data-theme="dark"] .dwWrap,html[data-theme="dark"] .dwWrap iframe{background:#16181d}
+html[data-theme="dark"] .conn{background:#2a1418;color:#ffb3c0;border-bottom-color:#4a232b}
+html[data-theme="dark"] .conn code{background:#3a1c22;color:#ff9bae}
+html[data-theme="dark"] .conn.ok{background:#10241b;color:#7fe3b0;border-bottom-color:#1c3a2c}
+html[data-theme="dark"] .alert.warnbox{background:#241f12;border-color:#4a3f1f;color:#e8c879}
+html[data-theme="dark"] .librow.on .mi .t{color:#ff7a8d}
+html[data-theme="dark"] .librow.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+html[data-theme="dark"] .albHead .who em{background:rgba(31,191,117,.18);color:#5fe0a3}
+html[data-theme="dark"] .logs h4{border-bottom-color:var(--line)}
+html[data-theme="dark"] .brand p{color:var(--dim)}
+/* 滚动条：暗色 */
+html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#3a414b;border:2px solid transparent;background-clip:padding-box}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:#4a525e;border:2px solid transparent;background-clip:padding-box}
+/* ============ 卡片入场动画（轻量淡入上浮，fill:backwards 不锁 hover transform）============ */
+@keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.item,.albC,.srow.alb{animation:cardIn .45s ease backwards}
+.grid .item:nth-child(1){animation-delay:.02s}.grid .item:nth-child(2){animation-delay:.05s}
+.grid .item:nth-child(3){animation-delay:.08s}.grid .item:nth-child(4){animation-delay:.11s}
+.grid .item:nth-child(5){animation-delay:.14s}.grid .item:nth-child(6){animation-delay:.17s}
+.grid .item:nth-child(7){animation-delay:.20s}.grid .item:nth-child(8){animation-delay:.23s}
+.albGrid .albC:nth-child(1){animation-delay:.02s}.albGrid .albC:nth-child(2){animation-delay:.05s}
+.albGrid .albC:nth-child(3){animation-delay:.08s}.albGrid .albC:nth-child(4){animation-delay:.11s}
+.albGrid .albC:nth-child(5){animation-delay:.14s}.albGrid .albC:nth-child(6){animation-delay:.17s}
+.albGrid .albC:nth-child(7){animation-delay:.20s}.albGrid .albC:nth-child(8){animation-delay:.23s}
+.albGrid .albC:nth-child(9){animation-delay:.26s}.albGrid .albC:nth-child(10){animation-delay:.29s}
+@media (prefers-reduced-motion:reduce){.item,.albC,.srow.alb{animation:none}}
 </style>
 </head>
 <body data-page-node-id="Na2JkVOieEwQ90ny6oba1N">
@@ -821,6 +993,7 @@ main.studio-on .content,main.studio-on .albStage{display:none}
         <button class="btn" id="btnLib" data-page-node-id="LibBtn0Xq7Lm2NvB4tRw">作品库</button>
         <button class="btn" id="btnZip" disabled data-page-node-id="8dnzDgZKgdLJkvAyCGhr6J">下载 ZIP</button>
         <button class="btn" id="btnOpen" disabled data-page-node-id="xvXDAU5GrOG07sHWJ3USxk">打开文件夹</button>
+        <button class="btn" id="btnTheme" title="切换深色 / 浅色" data-page-node-id="ThemeBtn0Xq7Lm2NvB4tRw">🌙 暗</button>
       </div>
     </div>
     <div class="prog" data-page-node-id="LvwOPtNmZQKr1itiwREi4y"><i id="pbar" data-page-node-id="EfX81fLrNkXPnIBiWk3psK"></i></div>
@@ -885,6 +1058,22 @@ main.studio-on .content,main.studio-on .albStage{display:none}
 
 <script>
 const $  = s => document.querySelector(s);
+/* 主题切换（UI Designer 2026-09-19）：深色 / 浅色，存 localStorage，并跟随系统偏好 */
+(function(){
+  const root=document.documentElement, btn=document.getElementById('btnTheme');
+  const mq=window.matchMedia('(prefers-color-scheme:dark)');
+  const saved=localStorage.getItem('wb-theme');
+  if(saved==='dark'||(!saved&&mq.matches)) root.setAttribute('data-theme','dark');
+  const sync=()=>{ if(btn) btn.textContent = root.getAttribute('data-theme')==='dark'?'☀ 亮':'🌙 暗'; };
+  sync();
+  btn&&btn.addEventListener('click',()=>{
+    const dark=root.getAttribute('data-theme')!=='dark';
+    root.setAttribute('data-theme',dark?'dark':'light');
+    localStorage.setItem('wb-theme',dark?'dark':'light');
+    sync();
+  });
+  if(mq.addEventListener) mq.addEventListener('change',e=>{ if(!localStorage.getItem('wb-theme')){ root.setAttribute('data-theme',e.matches?'dark':'light'); sync(); } });
+})();
 const $$ = s => Array.from(document.querySelectorAll(s));
 
 /* ================ 后端地址解析 ================
