@@ -31,6 +31,9 @@
     GET  /                       工作台页面
     GET  /api/ping               健康检查（pid / version / 各项能力：钥匙扣·商品图·黑胶·专辑）
     GET  /api/artist?name=&source=   查歌手 + 热门歌曲列表(只查不下载)
+                                     加 &albums=1 时顺便带回全部专辑
+                                     (albumList / albumCount)；专辑那一段失败只写
+                                     albumError，不影响热门部分(部分成功)
     GET  /api/albums?name=&limit=    查歌手**全部专辑**列表(只查不下载；专辑全集模式用)
     GET  /api/song?name=&source=     查单曲候选（QQ 结果优先，带 QQ 角标）
     GET  /api/state?id=          任务进度 / 结果
@@ -40,7 +43,8 @@
     POST /api/upload?name=       上传封面图(原始字节流)
     POST /api/reveal             在资源管理器打开输出目录
     GET  /api/jobs               作品库列表（商品图 + 迷你CD 两类合并，新的在前）
-    POST /api/jobs/delete        把一条作品**移入回收站**（不是删除，可捞回）
+    POST /api/jobs/delete        把作品**移入回收站**（不是删除，可捞回）
+                                 {id,cat} 单条 ／ {ids:[{id,cat},…]} 批量（逐条报账）
 
 日志:
     workbench/server.log         请求留痕 + 异常堆栈（超过 2MB 自动转到 .1）
@@ -150,7 +154,9 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.10.0"   # 1.10.0: 迷你CD 设计工作台（单张 + 批量多专辑 + 对照图/打印）
+VERSION = "1.11.0"   # 1.11.0: 作品库（唯一入口 + 品类筛选 + 批量选择 + 一键回收）
+                     #         歌手搜索合并（一个入口，两个出口，下游两条链路未改）
+                     # 1.10.0: 迷你CD 设计工作台（单张 + 批量多专辑 + 对照图/打印）
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -682,6 +688,55 @@ def _work_trash(jid, d):
     return os.path.join(dest, jid)
 
 
+def _trash_one(jid, cat):
+    """把**一条**作品移入回收站，返回 (payload, http_code)。
+
+    单条接口与批量接口共用这一支。批量只负责「逐条调它并记账」，
+    搬运本身与报错判定全在这里 —— 两条路各写一遍的话，迟早只改其中一处。
+
+    返回码的语义（批量那条据此对账）：
+      200 + ok=True  → 已经搬走，trashDir 是落点
+      409            → 任务正在跑，不能搬
+      404 / 500      → 没找到 / 搬运出错（error 是人话）
+    """
+    jid = (jid or "").strip()
+    cat = (cat or "").strip()
+
+    d = jobs_dir_of(jid)
+    if d:
+        with LOCK:
+            live = JOBS.get(jid)
+            if live and live.get("status") == "running":
+                return {"error": "任务正在运行，等它跑完再回收"}, 409
+        try:
+            dest = _work_trash(jid, d)
+        except Exception as e:
+            return {"error": "%s: %s" % (type(e).__name__, e)}, 500
+        with LOCK:
+            JOBS.pop(jid, None)
+        slog("SYS", "作品库回收商品图任务 %s → %s" % (jid, dest))
+        return {"ok": True, "id": jid, "cat": CAT_WORK, "trashDir": dest,
+                "note": "已移入回收站（未删除）"}, 200
+
+    # 不是商品图任务 —— 交给迷你CD 那边（它自带形状与越界校验）
+    if cat == CAT_MINI or design_dir_of(jid):
+        try:
+            r = DSDESIGN.trash_project(jid)
+        except ValueError as e:
+            return {"error": str(e)}, 404
+        except Exception as e:
+            # 原来这里只捕 ValueError：别的异常会往上冒，批量时会把整批打断
+            return {"error": "%s: %s" % (type(e).__name__, e)}, 500
+        if not isinstance(r, dict):
+            r = {"ok": True}
+        r = dict(r)
+        r.setdefault("id", jid)   # 迷你CD 那边惯用 jid，批量要按 id 对账
+        r["cat"] = CAT_MINI
+        return r, 200
+
+    return {"error": "job not found"}, 404
+
+
 def jobs_dir_of(jid):
     """jid → 磁盘上的任务目录（已做形状校验与越界校验）。"""
     jid = _safe_jid(jid)
@@ -912,6 +967,21 @@ def render_vinyl(job, base, cpath, title, artist, dur_s, opt):
 
 
 # ---------------- 专辑图（专辑全集） ----------------
+
+def album_brief(a):
+    """专辑项 → 对外 JSON（/api/albums 与 /api/artist?albums=1 共用一套）。
+
+    两处各写一遍序列化，字段只改一边就会长歪：同一个歌手，从「歌手」tab 看到的
+    专辑和从 /api/albums 看到的会不一样（少个曲目数 / 少个日期），这种 bug 极难查。
+    全部用 .get() 兜底 —— 单张专辑字段缺了不该让整个列表 500。
+    """
+    return {
+        "id": a.get("id"),
+        "name": a.get("name") or "", "date": a.get("date") or "",
+        "tracks": a.get("tracks"), "type": a.get("type") or "",
+        "company": a.get("company") or "", "pic": a.get("pic") or "",
+    }
+
 
 def album_ready():
     """专辑图能力探测：模块在不在 + 字体能不能加载。"""
@@ -1717,9 +1787,11 @@ class Handler(BaseHTTPRequestHandler):
                     why = "；".join(n.lstrip("⚠ ") for n in notes) or "两个数据源都没有结果"
                     slog("WARN", f"artist/{name}: {why}")
                     return self._json({"error": f"{name}：{why}", "notes": notes}, 404)
-                return self._json({
+                out = {
                     "artist": {
                         "id": ar.get("id"), "name": ar.get("name"),
+                        # 🔴 这个 albums 是**张数**（数字），跟下面 albumList（数组）
+                        #    不是一个东西，别合并别改名。
                         "albums": ar.get("albumSize") or 0,
                         "pic": ar.get("picUrl") or ar.get("img1v1Url") or "",
                     },
@@ -1729,7 +1801,35 @@ class Handler(BaseHTTPRequestHandler):
                         "id": s["id"], "name": s["name"], "artist": s["artists"],
                         "album": s["album"], "dur": fmt_dur(s["dur_ms"]),
                     } for s in pool],
-                })
+                }
+                # albums=1：搜一次歌手，顺手把「全部专辑」也带回来，前端两个出口
+                # 就不用让用户再查一遍。三条硬要求见文件头注释。
+                if (q.get("albums") or ["0"])[0] == "1":
+                    out["albumList"] = []
+                    out["albumCount"] = int(ar.get("albumSize") or 0)
+                    out["albumError"] = ""
+                    ab_ok, ab_why = album_ready()
+                    if not ab_ok:
+                        out["albumError"] = ab_why
+                    else:
+                        try:
+                            # plan_albums 自己解析歌手（网易云 search + artist_albums），
+                            # 与上面 pick_source 那条**互不依赖** —— 所以热门走了 QQ
+                            # 音乐也不影响这里，反过来也是。这正是「部分成功」的基础。
+                            _ar2, albs = ALBUM.plan_albums(name, album_limit({}))
+                            if albs:
+                                out["albumList"] = [album_brief(a) for a in albs]
+                                # 以**实际拿到的**张数覆盖 albumSize：专辑墙到时候真出
+                                # 多少张，前端提前显示的就该是多少张（可能有同名去重）。
+                                out["albumCount"] = len(albs)
+                            else:
+                                out["albumError"] = "这位歌手没有可用的专辑封面"
+                        except Exception as e:
+                            # 接口抽风 / 超时 / 字段缺失 —— 一律降级成「专辑这次没拉到」，
+                            # 绝不把整个查询变成 404。用户还能照常取热门出图。
+                            slog("WARN", f"artist/{name} albums: {type(e).__name__}: {e}")
+                            out["albumError"] = f"{type(e).__name__}: {e}"
+                return self._json(out)
 
             if p == "/api/albums":
                 # 专辑全集的「查询」：只拉列表给用户确认，不下载、不出图。
@@ -1755,12 +1855,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({
                     "artist": {"id": ar.get("id"), "name": ar.get("name")},
                     "count": len(albs),
-                    "albums": [{
-                        "id": a.get("id"),
-                        "name": a["name"], "date": a["date"],
-                        "tracks": a["tracks"], "type": a["type"],
-                        "company": a["company"], "pic": a["pic"],
-                    } for a in albs],
+                    "albums": [album_brief(a) for a in albs],
                 })
 
             if p == "/api/song":
@@ -1924,40 +2019,51 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": str(e)}, 500)
 
             if p == "/api/jobs/delete":
-                # 把一条作品**移入回收站**（不是删除）：
+                # 把作品**移入回收站**（不是删除）：
                 #   商品图 → outputs/工作台/_trash/<时间戳>-<id>/
                 #   迷你CD → outputs/迷你CD设计/_trash/<时间戳>-<id>/
                 # 想找回：把里面的 <id> 目录移回上一级即可。
                 # ⚠️ 这里原来是 shutil.rmtree（不可恢复）。改成移走，是因为作品库
-                #    现在同时收两类任务，一个"删了就没了"的按钮摆在那儿迟早出事。
+                #    现在同时收两类任务，一个「删了就没了」的按钮摆在那儿迟早出事。
                 #    原有关卡一个不动：id 形状校验 + realpath 越界校验 + 运行中不许动。
+                # 2026-09-19 起同时支持**批量**（作品库能全选了，一条条点太慢）：
+                #   {"id":"x","cat":"minicd"}                 → 单条，返回形状与以前一致
+                #   {"ids":[{"id":"x","cat":"minicd"}, ...]}  → 批量，逐条报账
+                # 批量**不能**只回一句 ok：搬了 8 条成功 7 条，在界面上跟全成功
+                # 长得一模一样，剩下那条会永远赖在库里，而用户以为已经删干净了。
                 data = json.loads(self._body() or b"{}")
-                jid = (data.get("id") or "").strip()
-                cat = (data.get("cat") or "").strip()
+                items = data.get("ids")
+                if items is None:
+                    # 单条：保持老返回形状（e2e / 脚本还在用）
+                    return self._json(*_trash_one(data.get("id"), data.get("cat")))
+                if not isinstance(items, list):
+                    return self._json({"error": "ids 必须是数组"}, 400)
+                if not items:
+                    return self._json({"error": "没有要回收的作品"}, 400)
+                if len(items) > 500:
+                    # 一次点 500 条以上，多半是误操作（比如在全选状态下切错了筛选）
+                    return self._json({"error": "一次最多回收 500 条"}, 400)
 
-                d = jobs_dir_of(jid)
-                if d:
-                    with LOCK:
-                        live = JOBS.get(jid)
-                        if live and live.get("status") == "running":
-                            return self._json({"error": "任务正在运行，等它跑完再回收"}, 409)
+                moved, failed = [], []
+                for it in items:
+                    it = it if isinstance(it, dict) else {}
+                    jid, cat = it.get("id"), it.get("cat")
                     try:
-                        dest = _work_trash(jid, d)
+                        r, code = _trash_one(jid, cat)
                     except Exception as e:
-                        return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
-                    with LOCK:
-                        JOBS.pop(jid, None)
-                    slog("SYS", "作品库回收商品图任务 %s → %s" % (jid, dest))
-                    return self._json({"ok": True, "id": jid, "trashDir": dest,
-                                       "note": "已移入回收站（未删除）"})
-
-                # 不是商品图任务 —— 交给迷你CD 那边（它自带形状与越界校验）
-                if cat == CAT_MINI or design_dir_of(jid):
-                    try:
-                        return self._json(DSDESIGN.trash_project(jid))
-                    except ValueError as e:
-                        return self._json({"error": str(e)}, 404)
-                return self._json({"error": "job not found"}, 404)
+                        # 单条的意外不能把整批打断 —— 记下来继续搬后面的
+                        r, code = {"error": "%s: %s" % (type(e).__name__, e)}, 500
+                    if code == 200 and isinstance(r, dict) and r.get("ok"):
+                        moved.append({"id": jid, "cat": cat or "",
+                                      "trashDir": r.get("trashDir")})
+                    else:
+                        err = (r or {}).get("error") or ("HTTP %s" % code)
+                        failed.append({"id": jid, "cat": cat or "", "error": err})
+                        slog("WARN", "作品库批量回收失败 %s: %s" % (jid, err))
+                if moved:
+                    slog("SYS", "作品库批量回收 %d 条（失败 %d 条）" % (len(moved), len(failed)))
+                return self._json({"ok": True, "moved": moved, "failed": failed,
+                                   "note": "已移入回收站（未删除）"})
 
             if p == "/api/run":
                 req = json.loads(self._body() or b"{}")

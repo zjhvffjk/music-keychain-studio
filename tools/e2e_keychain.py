@@ -15,6 +15,7 @@ import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import noproxy  # noqa: E402,F401   （本机 HTTP_PROXY 会把 127.0.0.1 也代理走）
+from e2e_common import ver_ok  # noqa: E402
 
 from PIL import Image  # noqa: E402
 
@@ -52,7 +53,8 @@ print("\n[1] 后端能力上报")
 st, b = call("GET", "/api/ping")
 d = json.loads(b.decode("utf-8"))
 check("ping 返回 200", st == 200, "HTTP %s" % st)
-check("版本 >= 1.3.0", d.get("version", "0") >= "1.3.0", "version=%s" % d.get("version"))
+# 版本号必须转元组再比：直接比字符串时 "1.11.0" >= "1.3.0" 是 False（见 e2e_common）
+check("版本 >= 1.3.0", ver_ok(d.get("version"), (1, 3, 0)), "version=%s" % d.get("version"))
 check("keychain 能力可用", d.get("keychain") is True, str(d.get("keychainWhy") or ""))
 
 # ---- 2) 提交带钥匙扣的任务 ----

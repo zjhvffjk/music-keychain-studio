@@ -79,6 +79,33 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
                 box-shadow:0 1px 3px rgba(20,25,40,.12)}
 .pane{display:none;margin-top:18px}
 .pane.on{display:block}
+/* ---------- 歌手：一个搜索入口，两个出口 ---------- */
+/* 歌手名不再在两个 tab 各填一遍 —— 搜一次，出口分两条（下游各自原样保留）。 */
+.fld.hid{display:none}
+.exitbox{display:none;margin:4px 0 2px;padding:10px 11px;background:#fafbfc;
+         border:1px solid var(--line);border-radius:10px}
+.exitbox.on{display:block}
+.exitbox .eh{font-size:11px;color:var(--dim2);line-height:1.55;margin-bottom:9px}
+.exitbox .eb{display:flex;gap:8px}
+.exitbox .eb button{
+  flex:1;padding:9px 7px;border:1px solid var(--line2);border-radius:8px;
+  background:#fff;color:var(--fg2);font-family:inherit;font-size:12.5px;
+  font-weight:500;line-height:1.35;cursor:pointer;transition:.13s;text-align:center}
+.exitbox .eb button:hover:not(:disabled){border-color:var(--red);color:var(--red)}
+.exitbox .eb button.on{border-color:var(--red);background:#fdf2f4;color:var(--red)}
+.exitbox .eb button:disabled{opacity:.4;cursor:default}
+.exitbox .eb em{display:block;font-size:11px;font-weight:400;color:var(--dim2);
+                font-style:normal;margin-top:3px;line-height:1.4}
+.exitbox .eb button.on em{color:#bf6a77}
+.albCur{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim2);
+        padding:8px 11px;background:#f7f8fa;border:1px solid var(--line);
+        border-radius:8px;margin-bottom:12px}
+.albCur b{color:var(--fg);font-weight:500}
+.albCur button{margin-left:auto;font-size:11.5px;padding:4px 10px;border-radius:7px;
+        border:1px solid var(--line2);background:#fff;color:var(--fg2);
+        cursor:pointer;font-family:inherit;transition:.13s;flex:none}
+.albCur button:hover{border-color:var(--red);color:var(--red)}
+
 
 /* ---------- 表单 ---------- */
 .lbl{font-size:11.5px;color:var(--dim);margin:0 0 7px 2px;letter-spacing:.3px;
@@ -504,6 +531,29 @@ main.studio-on .content,main.studio-on .albStage{display:none}
 .librow .mi .tag.cat{background:#fdeef1;color:#a30d29}
 .libdet .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .libdet .lk{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+/* ---- 作品库批量选择（2026-09-19：一条条点太慢）----
+   选择键是「品类:jid」而不是光 jid —— 两个库理论上会撞号（服务端会打 WARN 并跳过），
+   只按 jid 记，会把另一个库里的同号作品一起勾上、一起搬走。 */
+.libsel{display:flex;align-items:center;gap:12px;padding:8px 18px;background:#f7f8fa;
+     border-bottom:1px solid var(--line);flex:none;font-size:12px;color:var(--dim)}
+.libsel .sp{flex:1}
+.libsel .ck{display:flex;align-items:center;gap:6px;cursor:pointer;
+     user-select:none;color:var(--fg2)}
+.libsel .ck input{width:15px;height:15px;margin:0;flex:none;
+     accent-color:var(--red);cursor:pointer}
+.libsel b{color:var(--red);font-variant-numeric:tabular-nums}
+.libsel button{font-size:11.5px;padding:4px 11px;border-radius:7px;border:1px solid var(--line);
+     background:#fff;color:var(--fg2);cursor:pointer;font-family:inherit;transition:.13s}
+.libsel button:hover:not(:disabled){border-color:var(--red);color:var(--red)}
+.libsel button.del{background:var(--red);border-color:var(--red);color:#fff}
+.libsel button.del:hover:not(:disabled){background:#c41630;border-color:#c41630}
+.libsel button:disabled{opacity:.4;cursor:default}
+.librow .pk{flex:none;align-self:center;display:flex;align-items:center;padding:2px;cursor:pointer}
+.librow .pk input{width:16px;height:16px;margin:0;display:block;
+     accent-color:var(--red);cursor:pointer}
+.librow .mi{cursor:pointer}
+.librow.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.librow.on .mi .t{color:#a30d29}
 </style>
 </head>
 <body data-page-node-id="Na2JkVOieEwQ90ny6oba1N">
@@ -516,8 +566,10 @@ main.studio-on .content,main.studio-on .albStage{display:none}
     </div>
     <div class="side-body" data-page-node-id="WpJ6Z6VmjtDHN9g5U45AKR">
       <div class="tabs" data-page-node-id="zjZLishYm1QDxDGAwcPHVX">
-        <button data-m="artist" class="on" data-page-node-id="K57GPO7tK79MOdA0Lzt03R">歌手热门</button>
-        <button data-m="album" data-page-node-id="AlbTab0Xq7Lm2NvB4tRwZ">专辑全集</button>
+        <!-- 「歌手热门」+「专辑全集」合并成一个「歌手」tab：搜歌手这步只做一次，
+             出口分两条（见下面 #exitBox），两条下游各自原样保留。
+             「专辑全集」不再是独立 tab —— 它变成「歌手」的出口②。 -->
+        <button data-m="artist" class="on" data-page-node-id="K57GPO7tK79MOdA0Lzt03R">歌手</button>
         <button data-m="song" data-page-node-id="yclsMGyAev4zrb37YyrOfP">单曲指定</button>
         <button data-m="upload" data-page-node-id="xYXpixd5MXWJZKTDhWFlF6">上传封面</button>
       </div>
@@ -525,7 +577,7 @@ main.studio-on .content,main.studio-on .albStage{display:none}
       <!-- 歌手 -->
       <div class="pane on" id="p-artist" data-page-node-id="R6DHxC7joeWfA3PqqzX5kY">
         <div class="fld" data-page-node-id="WVDDf2BoM9NpVbSdeOEJjA">
-          <div class="lbl" data-page-node-id="x9PXfgzvM0gMxkaADyV7Ls">歌手名 <em data-page-node-id="5MaMH4SyYGGWqeCD4tWose">支持中英文 / 别名</em></div>
+          <div class="lbl" data-page-node-id="x9PXfgzvM0gMxkaADyV7Ls">歌手名 <em data-page-node-id="5MaMH4SyYGGWqeCD4tWose">支持中英文 / 别名 · 一次查询同时拿热门与全部专辑</em></div>
           <div class="row" data-page-node-id="JhVoGJnfwsZiikMlVQ2EeK">
             <input type="text" id="artistName" placeholder="例：郑润泽" data-page-node-id="Afr3sEmc3SMFL6EtpmSIyN">
             <button class="btn" id="btnQueryArtist" data-page-node-id="XeMzPFOt7glsM2SO9KDlQR">查询</button>
@@ -549,11 +601,30 @@ main.studio-on .content,main.studio-on .albStage{display:none}
             <button data-n="20" data-page-node-id="9cbfOExPH8LddNdED1GYPz">20</button>
           </div>
         </div>
+        <!-- 两个出口：搜到之后选一条路。两条路各自出一个独立任务、互不影响。
+             出口① = 原「歌手热门」（播放界面 / 钥匙扣 / 白底 / 黑胶）
+             出口② = 原「专辑全集」（封面母版 / 专辑卡 / 专辑墙） -->
+        <div class="exitbox" id="exitBox">
+          <div class="eh">搜到了就选一条路 —— 两条各自出一个独立任务，互不影响：</div>
+          <div class="eb">
+            <button id="exitHot" class="on">① 按热门出图<em>播放界面 · 钥匙扣 · 白底 · 黑胶</em></button>
+            <button id="exitAlbum">② 抓全部专辑<em>封面母版 · 专辑卡 · 专辑墙</em></button>
+          </div>
+        </div>
       </div>
 
       <!-- 专辑全集 -->
       <div class="pane" id="p-album" data-page-node-id="AlbPane0Xq7Lm2NvB4tRw">
-        <div class="fld" data-page-node-id="AlbFld0Xq7Lm2NvB4tRwZ">
+        <!-- 这是「歌手」tab 的出口② 面板，不再是独立 tab。
+             歌手名不再在这里填：入口统一在「歌手」搜索，这里只显示当前是谁。
+             🔴 #albumArtist / #btnQueryAlbum **必须留在 DOM 里**（下面这行只是
+                被 .hid 藏起来）：collect() 组装参数时读的是 #albumArtist 的值，
+                「专辑模块不可用」的降级提示也在引用 #btnQueryAlbum。删了会断。 -->
+        <div class="albCur" id="albCurRow">
+          <span>当前歌手：<b id="albCurName">—</b></span>
+          <button id="albBack">← 回歌手换人</button>
+        </div>
+        <div class="fld hid" data-page-node-id="AlbFld0Xq7Lm2NvB4tRwZ">
           <div class="lbl" data-page-node-id="AlbLbl0Xq7Lm2NvB4tRwZ">歌手名 <em data-page-node-id="AlbEm0Xq7Lm2NvB4tRwZ">抓该歌手<b>全部</b>专辑（含单曲 / EP / 演唱会 Live）</em></div>
           <div class="row" data-page-node-id="AlbRow0Xq7Lm2NvB4tRwZ">
             <input type="text" id="albumArtist" placeholder="例：周杰伦" data-page-node-id="AlbIn0Xq7Lm2NvB4tRwZ">
@@ -587,7 +658,8 @@ main.studio-on .content,main.studio-on .albStage{display:none}
           </div>
         </div>
         <div class="kchint" data-page-node-id="AlbHint0Xq7Lm2NvB4tRwZ">
-          一次抓完全部专辑：每张出一份<b>封面母版原图</b>，可选再出<b>专辑卡</b>与<b>专辑墙</b>。
+          这里是「歌手」的出口②：一次抓完全部专辑，每张出一份<b>封面母版原图</b>，
+          可选再出<b>专辑卡</b>与<b>专辑墙</b>。
           数据源为网易云（专辑列表不受版权影响，周杰伦这类也可拿到全量）。
         </div>
       </div>
@@ -759,10 +831,10 @@ main.studio-on .content,main.studio-on .albStage{display:none}
         <div class="big" data-page-node-id="iMo99em8T5eV4gThgExp59">◍</div>
         <h3 data-page-node-id="D8XPSmM6OnIX7zijCUNJhS">还没有产出</h3>
         <p data-page-node-id="HCF0oppvfkdAmnONxhmwH5">
-          左侧选「歌手热门」查一位歌手，确认后取热门前 N 首<br data-page-node-id="BMB2AEZ0AYBpymvhkXRNra">
+          左侧「歌手」查一位歌手 —— 搜一次，热门与全部专辑一起回来，再选出口<br data-page-node-id="BMB2AEZ0AYBpymvhkXRNra">
           每首会出两张图：<b data-page-node-id="v8HAJCplo339Kbj62R7jE6">1000×1000 正方形封面母版</b> + <b data-page-node-id="fYIKeSYhGgrKQbFMICSYMi">30×50mm 播放界面</b><br data-page-node-id="rQGJUH93n8v9vRXZwwIFwI">
           素材直接取自网易云 CDN 母版，不是手机截图<br data-page-node-id="KcEmpty0Xq7Lm2NvB4tRwZs">
-          选「专辑全集」则抓该歌手<b data-page-node-id="AlbEmpty0Xq7Lm2NvB4tRw">全部专辑</b>：封面母版 + 专辑卡 + 专辑墙总览<br data-page-node-id="AlbEmpty1Xq7Lm2NvB4tRw">
+          选出口②「抓全部专辑」则该歌手<b data-page-node-id="AlbEmpty0Xq7Lm2NvB4tRw">全部专辑</b>：封面母版 + 专辑卡 + 专辑墙总览<br data-page-node-id="AlbEmpty1Xq7Lm2NvB4tRw">
           勾选上面的「同时出钥匙扣商品图」，每首再多一张 <b data-page-node-id="KcEmpty1Dk9Wz3QmNr6sVbXp">1920×1920 钥匙扣实物效果图</b><br data-page-node-id="ShopEmpty0Xq7Lm2NvB4tRw">
           勾选「同时出白底商品图」，每首再出 <b data-page-node-id="ShopEmpty1Dk9Wz3QmNr6sVb">纯白底 / 透明底的商品图</b>（画布种类在下方选择，可多选），并附拼版总览
         </p>
@@ -791,6 +863,14 @@ main.studio-on .content,main.studio-on .albStage{display:none}
       </div>
       <button class="btn" id="libRefresh" data-page-node-id="LibRf4Zr8Wv3Tq6YnA1">刷新</button>
       <button class="btn" id="libClose" data-page-node-id="LibCl5Zr8Wv3Tq6YnA2">关闭</button>
+    </div>
+    <div class="libsel" id="libsel" data-page-node-id="LibSel7Zr8Wv3Tq6YnA4">
+      <label class="ck" data-page-node-id="LibCk8Zr8Wv3Tq6YnA5"><input type="checkbox" id="libAll" data-page-node-id="LibCk9Zr8Wv3Tq6YnA6">全选当前筛选</label>
+      <button id="libInv" data-page-node-id="LibIvAZr8Wv3Tq6YnA7">反选</button>
+      <button id="libNone" data-page-node-id="LibNoBZr8Wv3Tq6YnA8">清空选择</button>
+      <span class="sp"></span>
+      <span id="libSelHint" data-page-node-id="LibHintCZr8Wv3Tq6YnA9">已选 <b>0</b> 条</span>
+      <button class="del" id="libDelSel" disabled data-page-node-id="LibDelDZr8Wv3Tq6YnAA">移入回收站（0）</button>
     </div>
     <div class="libbd" id="libbd" data-page-node-id="LibBd6Zr8Wv3Tq6YnA3"></div>
   </div>
@@ -962,6 +1042,9 @@ function syncSel(){
    URL 不变、左栏不丢 —— 从头到尾只有一个工作台，不再「跳走」。 */
 let ARTIST_Q = '';    // 最近一次查询到的歌手名
 let DW_URL   = '';    // 当前 iframe 载入的地址（重复点同一张不重载，免得丢掉已生成的结果）
+/* 「歌手」搜一次的结果缓存：两个出口都靠它，省掉第二次查询。
+   albums 是**数组**（来自 /api/artist?albums=1 的 albumList），不是张数。 */
+let ARTIST_FOUND = null;
 
 /* 弹层切换：专辑网格 与 生成结果 共用主区，同一时刻只显示一个 */
 function showAlbumStage(){
@@ -975,6 +1058,14 @@ function showAlbumStage(){
 function hideAlbumStage(){
   const s = $('#albStage'); if(s) s.hidden = true;
   const c = $('#content');  if(c) c.hidden = false;
+  /* 标题也要跟着回来 —— 否则从「出口② 专辑全集」退回热门时，左栏已经在挑
+     热门前 N 首了，顶栏还写着「XX · 专辑全集」。（而且 closeStudio() 在
+     ALBUM_LIST 非空时会再 showAlbumStage() 一次、把标题又设回专辑，所以
+     光靠 hideAlbumStage 不还原标题是补不上的。）
+     🔴 只在结果区**确实还挂着空态**（.empty）时才还原：正在展示生成结果时
+        把标题冲成「未开始」反而是新 bug。 */
+  if(c && c.querySelector('.empty'))
+    setTitle('未开始', '选一个模式，配好参数，点开始生成');
 }
 /* 打开设计工作台 */
 function openStudio(params){
@@ -1184,25 +1275,34 @@ async function jpost(url, body){
   }));
 }
 
-/* ---------------- 模式切换 ---------------- */
+/* ---------------- 模式切换 ----------------
+   tab 点击与「歌手」的两个出口都走 uiMode()，只有一处切换逻辑。
+   🔴 出口② 会把 MODE 设成 'album'（专辑工作台那套原样复用），但 tab 条上
+      只有「歌手」这一个相关按钮 —— 所以高亮必须按 TAB_OF 反查，
+      否则会出现「一个 tab 都没选中」的样子。 */
+function uiMode(m){
+  MODE = m;
+  const tab = (m === 'album') ? 'artist' : m;   // 专辑出口仍属于「歌手」这个 tab
+  $$('.tabs button').forEach(x=>x.classList.toggle('on', x.dataset.m === tab));
+  $$('.pane').forEach(p=>p.classList.toggle('on', p.id === 'p-'+m));
+  /* 专辑出口不产播放界面，所以「钥匙扣 / 白底商品图 / 黑胶」三个开关与它无关。
+     留着会让用户以为勾了能多出图 —— 直接藏掉。 */
+  document.body.classList.toggle('mode-album', m === 'album');
+  /* 专辑出口是工作台：主区常驻专辑墙。回到热门则退回生成结果区。
+     （原来这里还有一支 'proj' ——「项目库」那个 tab 已经撤掉了，
+      作品库是唯一的「做过的」入口，见 libOpenStudio / closeStudio） */
+  if(m === 'album'){
+    if(!DW_URL){ renderAlbumStage(); showAlbumStage(); }
+  }else{
+    closeStudio();
+    hideAlbumStage();
+  }
+  const eh = $('#exitHot'), ea = $('#exitAlbum');
+  if(eh) eh.classList.toggle('on', m !== 'album');
+  if(ea) ea.classList.toggle('on', m === 'album');
+}
 $$('.tabs button').forEach(b=>{
-  b.onclick = ()=>{
-    $$('.tabs button').forEach(x=>x.classList.toggle('on', x===b));
-    MODE = b.dataset.m;
-    $$('.pane').forEach(p=>p.classList.toggle('on', p.id === 'p-'+MODE));
-    /* 专辑模式不产播放界面，所以「钥匙扣 / 白底商品图 / 黑胶」三个开关与它无关。
-       留着会让用户以为勾了能多出图 —— 直接藏掉。 */
-    document.body.classList.toggle('mode-album', MODE === 'album');
-    /* 「专辑全集」是工作台：主区常驻专辑墙。切到别的模式退回生成结果区。
-       （原来这里还有一支 'proj' ——「项目库」那个 tab 已经撤掉了，
-        作品库是唯一的「做过的」入口，见 libOpenStudio / closeStudio） */
-    if(MODE === 'album'){
-      if(!DW_URL){ renderAlbumStage(); showAlbumStage(); }
-    }else{
-      closeStudio();
-      hideAlbumStage();
-    }
-  };
+  b.onclick = ()=>{ uiMode(b.dataset.m); };
 });
 
 /* ---------------- 数量 ---------------- */
@@ -1329,63 +1429,52 @@ function initAlbumSizes(){
   });
 }
 
-$('#btnQueryAlbum').onclick = async ()=>{
+/* 专辑面板上那个「查询」已经不在界面上（入口统一到「歌手」搜索），
+   但 handler 保留并**转交统一入口** —— 两条独立查询路径并存就是两份状态，
+   迟早对不上（搜了 A 歌手、专辑列表却是 B 的）。 */
+$('#btnQueryAlbum').onclick = ()=>{
   const name = $('#albumArtist').value.trim();
   if(!name) return toast('先填歌手名');
-  const btn = $('#btnQueryAlbum');
-  btn.disabled = true; btn.textContent = '查询中';
-  ALBUM_FOUND = null;
-  try{
-    const d = await jget('/api/albums?name='+encodeURIComponent(name));
-    ALBUM_FOUND = {artist: d.artist.name, count: d.count};
-    ARTIST_Q = d.artist.name || '';
-    /* 左栏只留一句摘要 —— 专辑列表铺到右侧主区（专辑工作台），
-       窄栏里塞不下卡片墙，而且用户要的是「一搜索就铺开全部专辑」。 */
-    $('#albumBox').innerHTML = `
-      <div class="acard">
-        <div style="width:46px;height:46px;border-radius:8px;background:#e8eaee;flex:none"></div>
-        <div style="min-width:0">
-          <div class="nm">${esc(d.artist.name)}<em class="src">网易云</em></div>
-          <div class="sub">共 ${d.count} 张专辑 · 右侧点封面即可设计</div>
-        </div>
-      </div>`;
-    ALBUM_LIST = d.albums||[];
-    ALBUM_SEL.clear();
-    syncSel();
-
-    /* 铺开专辑工作台。先 closeStudio() 是为了退出上一张专辑的设计态
-       （否则新搜的歌手会被上一张的设计页挡住）。 */
-    closeStudio();
-    renderAlbumStage();
-    showAlbumStage();
-    /* 卡片点击 / 多选 / 批量 —— 全部由 renderAlbumStage() 内部绑定 */
-    toast(`找到 ${d.artist.name}，共 ${d.count} 张专辑`);
-  }catch(e){ toast(e.message); $('#albumBox').innerHTML=''; }
-  finally{ btn.disabled = false; btn.textContent = '查询'; }
+  $('#artistName').value = name;
+  uiMode('artist');
+  $('#btnQueryArtist').click();
 };
+
 $('#albumArtist').addEventListener('keydown', e=>{
   if(e.key === 'Enter') $('#btnQueryAlbum').click();
 });
 
-/* ---------------- 查询歌手 ---------------- */
+/* ---------------- 查询歌手（一个入口，两个出口） ----------------
+   albums=1：一次请求同时把「热门 30 首」和「全部专辑」都拿回来，
+   于是出口② 点了就能直接铺开，不用再查一遍。专辑那段失败不影响热门
+   （后端回 200 + albumError），下面按情况给提示。 */
 $('#btnQueryArtist').onclick = async ()=>{
   const name = $('#artistName').value.trim();
   if(!name) return toast('先填歌手名');
   const btn = $('#btnQueryArtist');
   btn.disabled = true; btn.textContent = '查询中';
+  ARTIST_FOUND = null;
+  $('#exitBox').classList.remove('on');
   try{
     const d = await jget('/api/artist?name='+encodeURIComponent(name)
-                         +'&source='+encodeURIComponent(SRC));
+                         +'&source='+encodeURIComponent(SRC)+'&albums=1');
     const a = d.artist, n = d.songs.length;
     const srcName = d.source === 'qq' ? 'QQ音乐' : '网易云';
     const warn = (d.notes||[]).filter(t=>t.startsWith('⚠'));
+    const albs = Array.isArray(d.albumList) ? d.albumList : [];
+    const acnt = typeof d.albumCount === 'number' ? d.albumCount : albs.length;
+    ARTIST_Q = a.name || '';
+    ARTIST_FOUND = {name:a.name, source:d.source, songs:d.songs, albums:albs};
+    /* 🔴 张数用 albumCount，**不能**用 a.albums：QQ 源（周杰伦这类版权歌手）
+       的歌手对象根本没有 albumSize，a.albums 是 0 —— 照它显示就成了「0 张专辑」，
+       而实际有 44 张。这个坑是实测出来的（见 _tmp/probe_artist_albums.py）。 */
     $('#artistBox').innerHTML = `
       <div class="acard">
         ${a.pic ? `<img src="${esc(a.pic)}?param=100y100" alt="">`
                 : `<div style="width:46px;height:46px;border-radius:50%;background:#e8eaee;flex:none"></div>`}
         <div style="min-width:0">
           <div class="nm">${esc(a.name)}<em class="src">${srcName}</em></div>
-          <div class="sub">热门曲目 ${n} 首${a.albums ? ' · 专辑 '+a.albums+' 张' : ''}</div>
+          <div class="sub">热门曲目 ${n} 首${acnt ? ' · 专辑 '+acnt+' 张' : ''}</div>
         </div>
       </div>
       ${(d.notes||[]).length ? `<div class="nts">${(d.notes||[]).map(t=>
@@ -1401,13 +1490,104 @@ $('#btnQueryArtist').onclick = async ()=>{
     $('#artistBox').insertAdjacentHTML('beforeend',
       `<div class="slist">${rows}</div>`);
     $('#topBox').style.display = '';
-    if(!warn.length) toast(`找到 ${a.name}，热门 ${n} 首 · 数据源 ${srcName}`);
-  }catch(e){ toast(e.message); $('#artistBox').innerHTML=''; }
+    /* 出口区：专辑列表没拿到也照样给按钮（点它会现拉一次），
+       但要如实说「这次没拉到」，别让用户以为一点就能铺开。 */
+    $('#exitBox').classList.add('on');
+    const ea = $('#exitAlbum');
+    ea.disabled = false;
+    ea.innerHTML = albs.length
+      ? `② 抓全部专辑<em>共 ${albs.length} 张 · 封面母版 · 专辑卡 · 专辑墙</em>`
+      : `② 抓全部专辑<em>专辑列表这次没拉到，点它会重试</em>`;
+    /* 出口② 面板要显示「当前是谁」，并把名字**预写进隐藏的 #albumArtist** ——
+       collect() 的 album 分支读的就是它，于是那段代码一个字都不用改。 */
+    $('#albCurName').textContent = a.name;
+    $('#albumArtist').value = a.name;
+    /* 换了歌手 → 上一位的专辑选择必须清掉，否则会把别人的专辑勾着带出去 */
+    ALBUM_FOUND = null; ALBUM_LIST = []; ALBUM_SEL.clear();
+    uiMode('artist');
+    if(!warn.length) toast(`找到 ${a.name}，热门 ${n} 首 · 专辑 ${acnt} 张 · 数据源 ${srcName}`);
+  }catch(e){
+    toast(e.message);
+    $('#artistBox').innerHTML=''; $('#exitBox').classList.remove('on');
+  }
   finally{ btn.disabled = false; btn.textContent = '查询'; }
 };
 $('#artistName').addEventListener('keydown', e=>{
   if(e.key === 'Enter') $('#btnQueryArtist').click();
 });
+
+/* ---------------- 出口①：按热门出图（原「歌手热门」链路，一行没改） ---------------- */
+$('#exitHot').onclick = ()=>{
+  if(!ARTIST_FOUND) return toast('先查一位歌手');
+  uiMode('artist');
+  $('#topBox').style.display = '';
+  toast('走热门：勾好下面的开关，点「开始生成」');
+};
+
+/* ---------------- 出口②：抓全部专辑（原「专辑全集」链路，一行没改） ---------------- */
+$('#exitAlbum').onclick = async ()=>{
+  const name = $('#artistName').value.trim();
+  /* 查询之后歌手名被改过 → 缓存里已经不是他/她了，先让用户重新查。
+     不然会把 A 的热门配上 B 的专辑（状态不一致是最难查的那类 bug）。 */
+  if(!ARTIST_FOUND || name !== ARTIST_FOUND.name)
+    return toast('歌手名改过了，先点「查询」');
+  const eb = $('#exitAlbum');
+  $('#albCurName').textContent = ARTIST_FOUND.name;
+  $('#albumArtist').value = ARTIST_FOUND.name;   // collect() 走 album 分支时读它
+  /* 先把列表装好再切模式：uiMode('album') 里会 renderAlbumStage()，
+     列表还空着切过去就白铺一次。 */
+  if(ARTIST_FOUND.albums.length){
+    ALBUM_LIST = ARTIST_FOUND.albums;
+    ALBUM_FOUND = {artist: ARTIST_FOUND.name, count: ALBUM_LIST.length};
+    ALBUM_SEL.clear();
+  }
+  $('#topBox').style.display = 'none';
+  uiMode('album');
+  if(ALBUM_LIST.length){
+    syncSel(); renderAlbumStage();
+    $('#albumBox').innerHTML = `
+      <div class="acard">
+        <div style="width:46px;height:46px;border-radius:8px;background:#e8eaee;flex:none"></div>
+        <div style="min-width:0">
+          <div class="nm">${esc(ARTIST_FOUND.name)}<em class="src">网易云</em></div>
+          <div class="sub">共 ${ALBUM_LIST.length} 张专辑 · 右侧点封面即可设计</div>
+        </div>
+      </div>`;
+    toast(`共 ${ALBUM_LIST.length} 张专辑，右侧铺开了`);
+    return;
+  }
+  /* 查询那一步专辑列表没拉到（网易云限流 / 那一下返回空列表）—— 现场重试一次，
+     别让用户点了个按钮什么也没发生。 */
+  eb.disabled = true;
+  toast('专辑列表重拉中…');
+  try{
+    const d = await jget('/api/albums?name='+encodeURIComponent(name));
+    ALBUM_LIST = d.albums||[];
+    ALBUM_FOUND = {artist: d.artist.name, count: d.count};
+    if(ARTIST_FOUND) ARTIST_FOUND.albums = ALBUM_LIST;
+    ALBUM_SEL.clear();
+    syncSel(); renderAlbumStage();
+    $('#albumBox').innerHTML = `
+      <div class="acard">
+        <div style="width:46px;height:46px;border-radius:8px;background:#e8eaee;flex:none"></div>
+        <div style="min-width:0">
+          <div class="nm">${esc(d.artist.name)}<em class="src">网易云</em></div>
+          <div class="sub">共 ${d.count} 张专辑 · 右侧点封面即可设计</div>
+        </div>
+      </div>`;
+    toast(`这次拿到了 ${d.count} 张专辑`);
+  }catch(e){
+    toast('专辑列表还是拿不到：' + e.message);
+    uiMode('artist');        // 空专辑墙没意义，退回热门那条路
+  }
+  finally{ eb.disabled = false; }
+};
+
+/* 出口② 面板上的「回歌手换人」：退回「歌手」搜索，热门结果还在 */
+$('#albBack').onclick = ()=>{
+  uiMode('artist');
+  if(ARTIST_FOUND) $('#topBox').style.display = '';
+};
 
 /* ---------------- 查询单曲 ---------------- */
 $('#btnQuerySong').onclick = async ()=>{
@@ -1858,6 +2038,10 @@ $('#btnOpen').onclick = async ()=>{
 let LIB_JOBS = [];        // 最近一次拉到的列表
 let LIB_CAT  = 'all';     // 品类筛选：all | work（商品图）| minicd（迷你CD设计）
 const LIB_OPEN = {};      // 哪些卡片展开了"回看"
+/* 选中的作品：键 = libKey(j)。只影响渲染（libPaint 读它），
+   不反过来被渲染改写 —— 所以勾选框点一下不必重画整个列表。 */
+const LIB_SEL  = new Set();
+let   LIB_BUSY = false;   // 正在批量回收：此刻别让按钮的可用性跟着计数乱跳
 
 function libWhen(ts, s){
   if(s) return s;
@@ -1974,6 +2158,115 @@ function libDetail(j){
   return h + '</div>';
 }
 
+/* ============ 作品库批量选择（2026-09-19）============
+   用户原话：「需要增加可以全选或者一键选择删除……我一个个点很麻烦」。
+   所以这里给的是：行内勾选框 + 点文字区也能选 + 全选/反选/清空 + 一键整批移入回收站。 */
+
+function libKey(j){ return (j && (j.cat || 'work')) + ':' + (j && j.id); }
+
+/* 选中／取消一条。on 省略 = 反过来。 */
+function libPick(key, on){
+  const j = LIB_JOBS.find(x => libKey(x) === key);
+  if(!j) return;
+  if(typeof on !== 'boolean') on = !LIB_SEL.has(key);
+  if(on) LIB_SEL.add(key); else LIB_SEL.delete(key);
+  /* 用 getElementById 而不是 $('#lib-' + id)：id 里万一有选择器特殊字符，
+     querySelector 会直接抛错（服务端保证是字母数字，但这里不该靠对面守规矩）。 */
+  const row = document.getElementById('lib-' + j.id);
+  if(row){
+    row.classList.toggle('on', on);
+    const ck = row.querySelector('.pk input');
+    if(ck) ck.checked = on;
+  }
+  libSelUI();
+}
+
+/* 某条被回收后从选择集里摘掉它（键是品类+jid，按 jid 反查更稳）。 */
+function libForget(id){
+  Array.from(LIB_SEL).forEach(k => {
+    if(k.slice(k.indexOf(':') + 1) === id) LIB_SEL.delete(k);
+  });
+}
+
+/* 选择区状态：计数、按钮可用性、全选框的三态（全选/半选/未选）。 */
+function libSelUI(){
+  const list = libFiltered();
+  const n = list.filter(j => LIB_SEL.has(libKey(j))).length;
+  $('#libSelHint').innerHTML = '已选 <b>' + n + '</b> 条';   // 只有数字，无注入面
+  const btn = $('#libDelSel');
+  btn.textContent = LIB_BUSY ? '正在移入…' : ('移入回收站（' + n + '）');
+  btn.disabled = LIB_BUSY || n === 0;
+  const all = $('#libAll');
+  all.disabled = !list.length;
+  all.checked = n > 0 && n === list.length;
+  all.indeterminate = n > 0 && n < list.length;   // 半选：只支持 checkbox 的现代浏览器
+  $('#libInv').disabled  = !list.length;
+  $('#libNone').disabled = n === 0;
+}
+
+/* 全选 / 取消全选 —— 只作用于**当前筛选**那一批。
+   按钮文案里写死「当前筛选」是有必要的：在「商品图」页点全选，
+   心里想的绝不是把整个库（含迷你CD）一起圈上。 */
+function libPickAll(on){
+  libFiltered().forEach(j => { const k = libKey(j);
+    if(on) LIB_SEL.add(k); else LIB_SEL.delete(k); });
+  libPaint();
+}
+function libPickInv(){
+  libFiltered().forEach(j => { const k = libKey(j);
+    if(LIB_SEL.has(k)) LIB_SEL.delete(k); else LIB_SEL.add(k); });
+  libPaint();
+}
+function libPickNone(){
+  libFiltered().forEach(j => LIB_SEL.delete(libKey(j)));
+  libPaint();
+}
+
+/* 批量移入回收站：一条请求搬一批。
+   🔴 必须逐条报账（moved / failed）。只说一句「已移入回收站」的话，
+      「搬了 8 条、成功 7 条」在界面上跟全成功长得一模一样，
+      剩下那条会永远赖在库里，而用户以为自己已经删干净了。 */
+async function libDelSel(){
+  const list = libFiltered().filter(j => LIB_SEL.has(libKey(j)));
+  if(!list.length){ toast('先勾几条再点'); return; }
+  const mini = list.filter(j => j.cat === 'minicd').length;
+  const work = list.length - mini;
+  const names = list.slice(0, 6).map(j => '· ' + (j.title || j.id)).join('\n')
+    + (list.length > 6 ? '\n· …等共 ' + list.length + ' 条' : '');
+  if(!confirm('把选中的 ' + list.length + ' 条作品移入回收站？\n\n'
+      + (mini ? '迷你CD设计 ' + mini + ' 条\n' : '')
+      + (work ? '商品图 ' + work + ' 条\n' : '')
+      + '\n' + names + '\n\n'
+      + '不会删除文件：每条任务的目录会被挪到所属库的 _trash/ 里。\n'
+      + '想找回，把它从 _trash/ 移回上一级目录即可。'))
+    return;
+  LIB_BUSY = true; libSelUI();
+  try{
+    const r = await jpost('/api/jobs/delete',
+      {ids: list.map(j => ({id: j.id, cat: j.cat || ''}))});
+    const moved  = r.moved  || [];
+    const failed = r.failed || [];
+    moved.forEach(m => {
+      libForget(m.id);
+      delete LIB_OPEN[m.id];
+      LIB_JOBS = LIB_JOBS.filter(x => x.id !== m.id);
+    });
+    libPaint();
+    if(failed.length)
+      // 失败必须被看见：一句 toast 会被错过，而这几条其实还躺在库里
+      alert('有 ' + failed.length + ' 条没能移入回收站：\n\n'
+        + failed.map(f => '· ' + (f.id || '(空号)') + '：' + (f.error || '未知原因')).join('\n'));
+    toast(failed.length
+      ? ('已移入回收站 ' + moved.length + ' 条 · 失败 ' + failed.length + ' 条')
+      : ('已把 ' + moved.length + ' 条移入回收站（未删除）'));
+  }catch(e){
+    toast('批量移入失败：' + e.message);
+  }finally{
+    LIB_BUSY = false;
+    libSelUI();   // 抛错时选择集还在，计数必须照实恢复
+  }
+}
+
 function libRow(j){
   const c = j.counts || {};
   const mini = j.cat === 'minicd';
@@ -2002,12 +2295,15 @@ function libRow(j){
   // 迷你CD 是同步出件，没有"耗时"这个概念
   const when = esc(libWhen(j.createdTs, j.created));
   const zipHref = mini ? (j.zipUrl || '') : ('/api/zip?id=' + j.id);
-  return `<div class="librow" id="lib-${esc(j.id)}">
+  const key = libKey(j);
+  const sel = LIB_SEL.has(key);
+  return `<div class="librow${sel ? ' on' : ''}" id="lib-${esc(j.id)}">
     <div class="hd">
+      <label class="pk" title="选中／取消这条"><input type="checkbox" data-lk="${esc(key)}"${sel ? ' checked' : ''}></label>
       <div class="th" ${j.thumb ? `onclick="zoom('${jsq(asset(j.thumb))}','${jsq(j.title)}')"` : ''}>
         ${j.thumb ? `<img src="${esc(asset(j.thumb))}" alt="" loading="lazy">` : ''}
       </div>
-      <div class="mi">
+      <div class="mi" onclick="libPick('${jsq(key)}')" title="点一下选中／取消">
         <div class="t">${mini ? '<span class="tag cat">迷你CD设计</span>' : libStatusTag(j)} ${esc(j.title || '未命名')}</div>
         <div class="s">${esc(modeTag)}${esc(srcTag)} · ${when}${mini ? '' : ` · 耗时 ${esc(j.elapsed || 0)}s`}</div>
         <div class="s">${bits.join(' · ')}${(mini ? c.parts : c.songs) ? '' : '（无产出）'}</div>
@@ -2041,12 +2337,14 @@ function libPaint(){
       + '</div>';
     $('#libsum').textContent = LIB_JOBS.length
       ? ('共 ' + LIB_JOBS.length + ' 条 · 这个品类下 0 条') : '';
+    libSelUI();
     return;
   }
   $('#libsum').textContent = LIB_CAT === 'all'
     ? ('共 ' + list.length + ' 条 · 最近的排在最前')
     : (catName + ' ' + list.length + ' 条 · 全部 ' + LIB_JOBS.length + ' 条');
   bd.innerHTML = list.map(libRow).join('');
+  libSelUI();
 }
 
 async function libLoad(quiet){
@@ -2072,6 +2370,9 @@ function libOpen(cat){
 /* 只切高亮与状态，不碰已拉到的列表 —— 切品类不该重新打一次网络。 */
 function libSetCat(cat){
   LIB_CAT = (cat === 'minicd' || cat === 'work') ? cat : 'all';
+  // 切品类 = 换了一批可见的行。选择集不清掉就会出现「看得见的没勾、看不见的勾着」，
+  // 一点批量回收连隐藏的那几条一起搬走 —— 这是这套东西最容易出事的用法，宁可清掉。
+  LIB_SEL.clear();
   $$('#libcat button').forEach(b => b.classList.toggle('on', b.dataset.c === LIB_CAT));
 }
 function libClose(){ $('#lib').classList.remove('on'); }
@@ -2103,6 +2404,7 @@ async function libDel(id){
     return;
   try{
     await jpost('/api/jobs/delete', {id, cat: j.cat || ''});
+    libForget(id);
     delete LIB_OPEN[id];
     LIB_JOBS = LIB_JOBS.filter(x=>x.id !== id);
     libPaint();
@@ -2117,6 +2419,16 @@ $$('#libcat button').forEach(b=>{
 });
 $('#btnLib').onclick = ()=> libOpen();
 $('#libClose').onclick = libClose;
+/* ---- 批量选择接线（2026-09-19）---- */
+$('#libAll').addEventListener('change', e => libPickAll(e.target.checked));
+$('#libInv').onclick    = libPickInv;
+$('#libNone').onclick   = libPickNone;
+$('#libDelSel').onclick = libDelSel;
+/* 行内勾选框走事件委托：列表每次都是整体重画的，逐行挂监听每次都得重挂一遍 */
+$('#libbd').addEventListener('change', e => {
+  const t = e.target;
+  if(t && t.matches && t.matches('.pk input')) libPick(t.dataset.lk, t.checked);
+});
 $('#libRefresh').onclick = ()=> libLoad(false);
 $('#lib').onclick = e=>{ if(e.target === $('#lib')) libClose(); };
 document.addEventListener('keydown', e=>{

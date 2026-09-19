@@ -20,6 +20,7 @@ import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import noproxy  # noqa: E402,F401   （本机 HTTP_PROXY 会把 127.0.0.1 也代理走）
+from e2e_common import ver_ok  # noqa: E402
 
 from PIL import Image  # noqa: E402
 
@@ -84,7 +85,8 @@ print("\n[1] 后端能力上报")
 st, b = call("GET", "/api/ping")
 d = json.loads(b.decode("utf-8"))
 check("ping 返回 200", st == 200, "HTTP %s" % st)
-check("版本 >= 1.9.0", d.get("version", "0") >= "1.9.0", "version=%s" % d.get("version"))
+# 版本号比较统一走 e2e_common.ver_ok —— 直接比字符串会假报失败（已踩三次）
+check("版本 >= 1.9.0", ver_ok(d.get("version"), (1, 9, 0)), "version=%s" % d.get("version"))
 check("album 能力可用", d.get("album") is True, str(d.get("albumWhy") or ""))
 sizes = d.get("albumSizes") or []
 check("上报卡片边长档位白名单", 1500 in sizes, "albumSizes=%s" % (sizes,))
@@ -252,6 +254,24 @@ for path in ("/assets/%s/meta.json" % jid,
              "/assets/%s/%%2e%%2e/meta.json" % jid):
     st, _ = call("GET", path, timeout=15)
     check("拦截 %s" % path, st == 403, "HTTP %s" % st)
+
+# ---- 9) 清场：本脚本用的是**真接口**，会在 outputs/工作台/ 里真建两个任务 ----
+# 🔴 它们会出现在「作品库」里，而且标题就叫「周杰伦 · 专辑全集」，跟用户自己的
+#    活儿长得一模一样（用户分不清哪些是测试）。所以跑完默认移进回收站
+#    （**不是删除**，能从 _trash/ 捞回）；要留档看效果就设 KEEP_TEST_JOB=1。
+#    ⚠️ 这一步必须放在所有断言之后 —— 它会把任务从作品库里挪走。
+print("\n[9] 清场（别把测试任务留在作品库）")
+if os.environ.get("KEEP_TEST_JOB") == "1":
+    print("  (KEEP_TEST_JOB=1：保留 %s / %s)" % (jid, jid2))
+else:
+    st, b = call("POST", "/api/jobs/delete",
+                 {"ids": [{"id": jid, "cat": "work"},
+                          {"id": jid2, "cat": "work"}]}, timeout=60)
+    d = json.loads(b.decode("utf-8")) if st == 200 else {}
+    check("两个测试任务都已移入回收站（未删除）",
+          st == 200 and len(d.get("moved") or []) == 2 and not (d.get("failed") or []),
+          "HTTP %s moved=%s failed=%s"
+          % (st, [m.get("id") for m in (d.get("moved") or [])], d.get("failed")))
 
 print("\n" + "=" * 64)
 print("  通过 %d 项，失败 %d 项" % (len(OK), len(BAD)))
