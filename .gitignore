@@ -31,6 +31,8 @@ config/packaging_workflow.json
 # ==================== 开发过程备份 ====================
 *.bak
 *.bak-*
+# 改写脚本的自动备份用的是 .bakN 后缀（fix_proj.py / drop_proj.py 等）
+*.bak[0-9]*
 *.old
 *.orig
 *.rej

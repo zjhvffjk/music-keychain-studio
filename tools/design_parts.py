@@ -816,12 +816,24 @@ def ean13(d, x, y, w, h, code, ink=(0, 0, 0), paper=(255, 255, 255), quiet=0.06)
 
 # ---------------- 手写引言 / 落款 ----------------
 _QUOTE_POOL = {
-    "dreamy": "把心事交给旋律，让它替我慢慢说",
-    "energetic": "把音量推到最大，世界就安静了",
-    "melancholic": "有些话说不出口，就唱成了歌",
-    "retro": "老歌里的那束光，照到今天还没熄",
-    "minimalist": "少一点声音，听懂的人自然会懂",
-    "bold": "不必解释，听见的人会明白",
+    "dreamy": ["把心事交给旋律，让它替我慢慢说",
+               "月亮不睡，我也不睡",
+               "云朵停在耳边，替我把话说完"],
+    "energetic": ["把音量推到最大，世界就安静了",
+                  "心跳是最诚实的节拍器",
+                  "年轻的声音，盖不住也拦不下"],
+    "melancholic": ["有些话说不出口，就唱成了歌",
+                    "难过就放到 B 面，别占 A 面的轨",
+                    "雨停之前，先把这首歌唱完"],
+    "retro": ["老歌里的那束光，照到今天还没熄",
+              "磁带会老，旋律不会",
+              "旧时光转一圈，又回到副歌"],
+    "minimalist": ["少一点声音，听懂的人自然会懂",
+                   "留白不是空，是给耳朵留的位置",
+                   "一首歌，记住一个字就够了"],
+    "bold": ["不必解释，听见的人会明白",
+             "不解释，是最响的宣言",
+             "把颜色调到最满，把话说得最直"],
 }
 
 _BAD_LINE = ("作词", "作曲", "编曲", "制作人", "录音", "混音", "母带", "和声",
@@ -852,8 +864,15 @@ def pick_quote(lyric_lines, D=None):
         top.sort(key=lambda kv: (-kv[1], len(kv[0])))
         return top[0][0]
     if D:
-        return _QUOTE_POOL.get(D.get("mood")) or _QUOTE_POOL.get(D.get("style"))
-    return _QUOTE_POOL["dreamy"]
+        key = D.get("mood") or D.get("style") or "dreamy"
+        pool = _QUOTE_POOL.get(key) or _QUOTE_POOL["dreamy"]
+        if isinstance(pool, str):     # 兼容旧的单句写法
+            pool = [pool]
+        # 无歌词回退以前固定取第一句 → 同 mood 的多张专辑批量时金句全部雷同。
+        # 现在用封面主色亮度做种子在池内挑选：跨专辑自然错开，单专辑可复现。
+        seed = sum(int(c) for c in (D.get("main") or (128, 128, 128))[:3])
+        return pool[seed % len(pool)]
+    return _QUOTE_POOL["dreamy"][0]
 
 
 def hand_text(im, xy, text, size, fill, tracking=1.0, anchor_x="left",
@@ -1076,7 +1095,10 @@ def design_back2(cover, w, h, D, album="", artist="", tracks=None, seed=0,
         tracklist(d, pad, y, lc, int(h * 0.715) - y, tracks, ink, dim,
                   cols=cols, max_lines=14, max_lead=int(h * 0.052))
     else:
-        f3, t3 = fit_tracked(d, artist or "", lc, int(h * 0.05), "sans", 1.2)
+        # 🔴 以前这里再印一遍 artist：标题块 + 这行 + 金句落款 = 无曲目时歌手名
+        #    出现三次（用户实测指出的重复）。实体封底这个位置通常印的是
+        #    「COMPACT DISC DIGITAL AUDIO」格式标识 —— 印这个，不再重复人名。
+        f3, t3 = fit_tracked(d, "COMPACT DISC DIGITAL AUDIO", lc, int(h * 0.05), "sans", 1.2)
         tracked(d, (pad, y), t3, f3, dim, 1.2, "left", lc)
 
     # 厂牌 / 版权层（实体封底的信息层，缺了就只是「设计稿」）

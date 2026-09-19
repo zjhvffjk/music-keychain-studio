@@ -39,6 +39,8 @@
     POST /api/run                创建并启动任务
     POST /api/upload?name=       上传封面图(原始字节流)
     POST /api/reveal             在资源管理器打开输出目录
+    GET  /api/jobs               作品库列表（商品图 + 迷你CD 两类合并，新的在前）
+    POST /api/jobs/delete        把一条作品**移入回收站**（不是删除，可捞回）
 
 日志:
     workbench/server.log         请求留痕 + 异常堆栈（超过 2MB 自动转到 .1）
@@ -81,8 +83,14 @@ if _missing:
     sys.exit(1)
 
 from PIL import Image  # noqa: E402
-from packaging_service import SERVICE as PACKAGING  # noqa: E402
+# 「专辑包装工坊」(packaging_*) 是**另做的独立工作台**，按用户要求不接入本工作台：
+# 文件仍保留在 workbench/ 内，需要时把下面这行 import 与 do_GET/do_POST 里的
+# `PACKAGING.handle(...)` 两处分发恢复，即重新挂上。
+# from packaging_service import SERVICE as PACKAGING  # noqa: E402
 from design_service import SERVICE as DESIGN  # noqa: E402
+# 作品库合并：迷你CD 的任务落在另一个目录（outputs/迷你CD设计/），
+# 必须拿到它的 OUT_DIR / list_projects / trash_project 才能并进同一份列表。
+import design_service as DSDESIGN  # noqa: E402
 
 from fetch163 import (  # noqa: E402
     API, cover_url, download, get_json, resolve_picurl, safe_name, search,
@@ -142,7 +150,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # APP_ID 用于「单实例检测」：启动时先问端口上是不是自己，
 # 是就只开浏览器不再起第二个进程（详见 main()）。
 APP_ID = "minuet-cover-workbench"
-VERSION = "1.9.0"   # 1.9.0: 新增「专辑全集」模式（封面母版 + 专辑卡 + 专辑墙）
+VERSION = "1.10.0"   # 1.10.0: 迷你CD 设计工作台（单张 + 批量多专辑 + 对照图/打印）
 LOG_FILE = os.path.join(HERE, "server.log")
 _LOG_LOCK = threading.Lock()
 _MISSING_JOBS = set()   # 已经提醒过的陌生 job id（只用于日志去重）
@@ -554,6 +562,10 @@ def job_card(m):
     live = JOBS.get(jid)
     return {
         "id": jid,
+        # 品类标记：迷你CD 那边是 "minicd"（见 design_job_card），这里是 "work"。
+        # 作品库的筛选按钮靠它分拣；不给的话前端只能靠「不等于 minicd」反推，
+        # 以后再加第三类就会误判 —— 显式写出来。
+        "cat": CAT_WORK,
         "title": m.get("title"), "mode": m.get("mode"),
         # 内存里还活着就以内存状态为准（可能正 running），否则用落盘状态
         "status": (live.get("status") if live else m.get("status")),
@@ -574,6 +586,100 @@ def job_card(m):
                       for g in grids],
         "items": items,
     }
+
+
+# ---------------------------------------------------------------- 作品库统一
+# 迷你CD设计的任务落在**另一个目录**（outputs/迷你CD设计/，见 design_service.OUT_DIR）
+# —— 和商品图任务分开存放。以前它在作品库里根本看不到，「做过的迷你CD」得另找地方。
+# 现在两类合并成**同一份列表、同一条时间线、同一套回看/下载/清理**。
+#
+# 🔴 资源地址不能混：商品图走 /assets/<jid>/<rel>（根 = outputs/工作台/，jobs_dir_of
+#    会把越界路径挡掉），迷你CD 必须走 /api/design/file —— 两边各用各的，不互相借道。
+WORK_TRASH = os.path.join(OUT_ROOT, "_trash")
+CAT_MINI = "minicd"
+CAT_WORK = "work"
+
+_PART_LABEL = {"disc": "盘面", "cover": "封面折件", "strip": "封底条",
+               "sheet": "版面总览", "print": "A4 打印拼版", "printPdf": "印刷 PDF"}
+
+
+def _part_label(key):
+    """件键 → 中文名。批量任务的键带序号（disc01 / print02），要还原出来。"""
+    key = str(key or "")
+    base = key.rstrip("0123456789") or key
+    tag = key[len(base):]
+    lab = _PART_LABEL.get(base, base)
+    return (tag + " · " + lab) if tag else lab
+
+
+def design_dir_of(jid):
+    """迷你CD设计的任务目录（同样的形状校验 + realpath 越界校验）。"""
+    jid = _safe_jid(jid)
+    if not jid:
+        return None
+    root = os.path.realpath(str(DSDESIGN.OUT_DIR))
+    d = os.path.realpath(os.path.join(root, jid))
+    if d != root and not d.startswith(root + os.sep):
+        return None
+    return d if os.path.isdir(d) else None
+
+
+def _card_ts(c):
+    """合并排序用。createdTs 可能是数字、字符串或缺失，混合类型直接 sort 会抛。"""
+    try:
+        return float(c.get("createdTs"))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def design_job_card(it):
+    """design_service.list_projects() 的条目 → 作品库卡片。
+
+    字段名**对齐 job_card**，前端 libRow / libDetail 不用大改就能渲染；
+    再补迷你CD 专属的 parts / zipUrl / embedUrl。
+    `it` 已经过 design_service 的逐字段形状防御，这里只负责拼展示字段。
+    """
+    jid = str(it.get("jid") or "")
+    files = it.get("files") if isinstance(it.get("files"), dict) else {}
+    album = str(it.get("album") or "")
+    artist = str(it.get("artist") or "")
+
+    parts = [{"key": k, "label": _part_label(k), "url": u}
+             for k, u in files.items() if u]
+
+    return {
+        "id": jid,
+        "cat": CAT_MINI,
+        "title": album or ("批量任务 %s" % jid),
+        "mode": CAT_MINI,
+        "status": "done",
+        "created": it.get("created"), "createdTs": it.get("ts"),
+        "elapsed": None,
+        "artist": artist, "source": None,
+        "album": album,
+        "batch": str(it.get("kind") or "").endswith("batch"),
+        "mood": it.get("mood"), "style": it.get("style"),
+        "hasAi": bool(it.get("hasAi")),
+        "trackCount": it.get("trackCount"),
+        "empty": bool(it.get("empty")),
+        # 作品库单张卡片只认 counts.*，这里给个能读的总数
+        "counts": {"minicd": it.get("count") or 1, "parts": it.get("fileCount") or 0},
+        "inMemory": False,
+        "thumb": it.get("thumb") or None,
+        "overviewUrl": files.get("sheet"),
+        "zipUrl": it.get("zipUrl") or ("/api/design/zip?jid=%s" % jid),
+        "embedUrl": "/design?jid=%s&embed=1&from=proj" % quote(jid),
+        "parts": parts,
+    }
+
+
+def _work_trash(jid, d):
+    """把商品图任务目录移入 outputs/工作台/_trash/（**移走，不是删除**）。"""
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    dest = os.path.join(WORK_TRASH, "%s-%s" % (stamp, jid))
+    os.makedirs(dest, exist_ok=True)
+    shutil.move(d, os.path.join(dest, jid))
+    return os.path.join(dest, jid)
 
 
 def jobs_dir_of(jid):
@@ -1546,12 +1652,9 @@ class Handler(BaseHTTPRequestHandler):
             slog("REQ", "GET %s | UA=%s | REF=%s"
                  % (self.path[:110], _ua, _rf))
         try:
-            if PACKAGING.handle(self, p, q, "GET"):
-                return
             if DESIGN.handle(self, p, q, "GET"):
                 return
-            if p == "/packaging":
-                return self._file(os.path.join(HERE, "packaging.html"))
+            # 注：/packaging 与 /api/packaging/* 已按用户要求断开（包装工坊是独立工作台）
             if p in ("/design", "/design.html"):
                 return self._file(os.path.join(HERE, "design.html"))
             if p == "/api/ping":
@@ -1714,8 +1817,39 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(snap(job))
 
             if p == "/api/jobs":
-                # 作品库列表：以**磁盘上的 meta.json** 为准，所以重启后依然完整
-                return self._json({"jobs": [job_card(m) for m in list_meta()]})
+                # 作品库列表：以**磁盘上的 meta.json** 为准，所以重启后依然完整。
+                # 两类任务合并成同一条时间线：
+                #   · outputs/工作台/     商品图工坊（播放界面/钥匙扣/白底/黑胶/专辑卡…）
+                #   · outputs/迷你CD设计/ 迷你CD设计（三件套 + A4 拼版 + PDF）
+                cards = [job_card(m) for m in list_meta()]
+                taken = set(c["id"] for c in cards)
+                # 🔴 读不出来的项目必须**带出到 API**，不能只写日志 ——
+                # 只写日志的表现是"作品库少几条"，肉眼永远看不出来。
+                #   bad[]     = 迷你CD 项目自己报上来的失败（design_service.list_projects）
+                #   skipped[] = 本条合并时被跳过的（目前只有 jid 撞车）
+                bad = []
+                skipped = []
+                try:
+                    _pr = DSDESIGN.list_projects(400)
+                    for _b in (_pr.get("bad") or []):
+                        slog("WARN", "作品库读取迷你CD项目失败 %s: %s"
+                             % (_b.get("jid"), _b.get("error")))
+                        bad.append({"jid": _b.get("jid"), "error": _b.get("error")})
+                    for it in _pr.get("items") or []:
+                        if it.get("jid") in taken:
+                            # 同名 id 在两个目录里各有一份 —— 绝不合并成一条，
+                            # 否则资源地址会指向错的那个；宁可少列一条并留日志。
+                            slog("WARN", "作品库 jid 撞车，跳过迷你CD项目 %s" % it.get("jid"))
+                            skipped.append({"jid": it.get("jid"),
+                                            "why": "jid 与商品图任务撞车"})
+                            continue
+                        cards.append(design_job_card(it))
+                except Exception as e:
+                    # 迷你CD 那半边坏了不能把整个作品库拖垮（它自己已尽量不抛）
+                    slog("WARN", "作品库合并迷你CD失败 %s: %s" % (type(e).__name__, e))
+                    bad.append({"jid": "*", "error": "%s: %s" % (type(e).__name__, e)})
+                cards.sort(key=_card_ts, reverse=True)
+                return self._json({"jobs": cards, "bad": bad, "skipped": skipped})
 
             if p == "/api/zip":
                 jid = (q.get("id") or [""])[0]
@@ -1750,8 +1884,6 @@ class Handler(BaseHTTPRequestHandler):
                 (self.headers.get("User-Agent") or "")[:70],
                 (self.headers.get("Referer") or "")[:90]))
         try:
-            if PACKAGING.handle(self, p, q, "POST"):
-                return
             if DESIGN.handle(self, p, q, "POST"):
                 return
             if p == "/api/upload":
@@ -1781,6 +1913,9 @@ class Handler(BaseHTTPRequestHandler):
                 job = JOBS.get(jid)
                 d = job["dir"] if job else jobs_dir_of(jid)
                 if not d:
+                    # 迷你CD 的任务目录不在 outputs/工作台/ 下，单独解析一次
+                    d = design_dir_of(jid)
+                if not d:
                     return self._json({"error": "job not found"}, 404)
                 try:
                     os.startfile(d)  # noqa: S606  (Windows)
@@ -1789,27 +1924,40 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": str(e)}, 500)
 
             if p == "/api/jobs/delete":
-                # 删除一条作品记录（磁盘上的整个任务目录）。
-                # ⚠️ 这是**不可恢复**的删除，所以三重把关：id 形状校验 + 必须在
-                #    outputs/工作台/ 以内（jobs_dir_of 已做 realpath 越界检查）
-                #    + 只删任务目录本身，绝不递归删到别处。前端必须二次确认后再调。
+                # 把一条作品**移入回收站**（不是删除）：
+                #   商品图 → outputs/工作台/_trash/<时间戳>-<id>/
+                #   迷你CD → outputs/迷你CD设计/_trash/<时间戳>-<id>/
+                # 想找回：把里面的 <id> 目录移回上一级即可。
+                # ⚠️ 这里原来是 shutil.rmtree（不可恢复）。改成移走，是因为作品库
+                #    现在同时收两类任务，一个"删了就没了"的按钮摆在那儿迟早出事。
+                #    原有关卡一个不动：id 形状校验 + realpath 越界校验 + 运行中不许动。
                 data = json.loads(self._body() or b"{}")
                 jid = (data.get("id") or "").strip()
+                cat = (data.get("cat") or "").strip()
+
                 d = jobs_dir_of(jid)
-                if not d:
-                    return self._json({"error": "job not found"}, 404)
-                with LOCK:
-                    live = JOBS.get(jid)
-                    if live and live.get("status") == "running":
-                        return self._json({"error": "任务正在运行，请等它跑完再删"}, 409)
-                try:
-                    shutil.rmtree(d)
-                except Exception as e:
-                    return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
-                with LOCK:
-                    JOBS.pop(jid, None)
-                slog("SYS", "作品库删除任务 %s（%s）" % (jid, d))
-                return self._json({"ok": True, "id": jid})
+                if d:
+                    with LOCK:
+                        live = JOBS.get(jid)
+                        if live and live.get("status") == "running":
+                            return self._json({"error": "任务正在运行，等它跑完再回收"}, 409)
+                    try:
+                        dest = _work_trash(jid, d)
+                    except Exception as e:
+                        return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+                    with LOCK:
+                        JOBS.pop(jid, None)
+                    slog("SYS", "作品库回收商品图任务 %s → %s" % (jid, dest))
+                    return self._json({"ok": True, "id": jid, "trashDir": dest,
+                                       "note": "已移入回收站（未删除）"})
+
+                # 不是商品图任务 —— 交给迷你CD 那边（它自带形状与越界校验）
+                if cat == CAT_MINI or design_dir_of(jid):
+                    try:
+                        return self._json(DSDESIGN.trash_project(jid))
+                    except ValueError as e:
+                        return self._json({"error": str(e)}, 404)
+                return self._json({"error": "job not found"}, 404)
 
             if p == "/api/run":
                 req = json.loads(self._body() or b"{}")

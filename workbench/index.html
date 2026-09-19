@@ -209,6 +209,7 @@ body.mode-album #vinylBox{display:none}
      color:var(--dim)}
 .nts .w{color:#b45309}
 .alert.warnbox{background:#fffbeb;border-color:#f3ddaa;color:#8a5a09}
+/* ---- 歌曲列表（歌手热门 / 单曲指定）：保持原有紧凑行，勿动 ---- */
 .slist{max-height:216px;overflow-y:auto;border:1px solid var(--line);
        border-radius:var(--r2);background:#fbfbfc}
 .srow{display:flex;gap:10px;align-items:center;padding:8px 11px;font-size:12.5px;
@@ -224,9 +225,86 @@ body.mode-album #vinylBox{display:none}
 .srow .a{color:var(--dim2);font-size:11px;max-width:38%;overflow:hidden;
          text-overflow:ellipsis;white-space:nowrap}
 .srow .d{color:var(--dim2);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
-.srow .btn-dz{flex:none;font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid var(--red);
-  background:#fff;color:var(--red);cursor:pointer;transition:.13s;font-family:inherit}
-.srow .btn-dz:hover{background:var(--red);color:#fff}
+
+/* ---- 专辑列表：折音 FOLD STUDIO 项目库形态（卡片化，2026-09-19 融合）
+   🔴 只作用于 .albList / .srow.alb —— 歌曲列表的 .slist / .srow 不受影响。
+   类名契约不变：.srow[data-i] / .cb / .thumb / .t / .d / .btn-dz，syncSel() 与事件绑定全靠它们。 */
+.slist.albList{max-height:46vh;border:0;background:transparent;padding:2px;
+       display:flex;flex-direction:column;gap:8px}
+.srow.alb{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:11px;align-items:center;
+      padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
+.srow.alb:last-child{border-bottom:1px solid var(--line)}
+.srow.alb:hover{background:var(--card);border-color:#e58ba0;box-shadow:0 3px 10px rgba(20,25,40,.07)}
+.srow.alb.sel,.srow.alb.on{background:#fdf3f5;border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
+.srow.alb .thumb{width:54px;height:54px;border-radius:9px;object-fit:cover;background:#e8eaee;display:block}
+.srow.alb .meta{min-width:0}
+.srow.alb .meta .t{display:block;font-weight:600;font-size:13.5px;overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap}
+.srow.alb .meta .d{display:block;color:var(--dim2);font-size:11px;margin-top:3px;
+               overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.srow.alb .meta .i{color:var(--red);margin-right:5px;font-weight:600;width:auto}
+.srow.alb .act{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.srow.alb .btn-dz{flex:none;font-size:11px;padding:4px 11px;border-radius:7px;border:1px solid var(--red);
+  background:#fff;color:var(--red);cursor:pointer;transition:.13s;font-family:inherit;white-space:nowrap}
+.srow.alb .btn-dz:hover{background:var(--red);color:#fff}
+.srow.alb .cb{flex:none;width:15px;height:15px;accent-color:var(--red);cursor:pointer;margin:0}
+.selbar{display:flex;align-items:center;gap:9px;padding:9px 11px;font-size:12px;color:var(--dim);
+  background:var(--card);border:1px solid var(--line);border-radius:10px;flex-wrap:wrap;margin-bottom:10px}
+.selbar b{color:var(--red);font-variant-numeric:tabular-nums}
+.selbar .sp{flex:1;min-width:6px}
+.selbar button{font-size:11.5px;padding:3px 9px;border-radius:6px;border:1px solid var(--line);
+  background:#fff;color:var(--dim);cursor:pointer;font-family:inherit;transition:.13s}
+.selbar button:hover{border-color:var(--red);color:var(--red)}
+.selbar button.primary{background:var(--red);border-color:var(--red);color:#fff}
+.selbar button.primary:hover{opacity:.88;color:#fff}
+.selbar button.primary:disabled{opacity:.4;cursor:default;background:var(--red);border-color:var(--red);color:#fff}
+
+/* ---- 专辑工作台（2026-09-19）----
+   搜索结果铺在右侧主区（不再是左栏窄列表），点一张就地进设计工作台。
+   🔴 设计工作台用 iframe 内嵌：design.html 独立可用性、e2e 基线、CSS/JS 全隔离
+   都不受影响，只是「不再跳页」。 */
+.albStage{flex:1;min-height:0;overflow-y:auto;padding:20px 24px 40px;display:flex;flex-direction:column}
+.albStage[hidden]{display:none}
+.albHead{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:14px;flex:none}
+.albHead .who{font-size:19px;font-weight:650;letter-spacing:.2px}
+.albHead .who em{font-style:normal;font-size:10.5px;font-weight:500;color:#0a7f45;
+  background:#e4f6ec;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:2px}
+.albHead .cnt{font-size:12.5px;color:var(--dim)}
+.albHead .sp{flex:1;min-width:8px}
+.albGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));
+  gap:15px;align-content:start}
+.albC{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;
+  cursor:pointer;transition:.16s;display:flex;flex-direction:column;min-width:0}
+.albC:hover{border-color:#e58ba0;box-shadow:0 8px 22px rgba(20,25,40,.10);transform:translateY(-2px)}
+.albC.sel{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+.albC .cv{position:relative;aspect-ratio:1;background:#e8eaee;overflow:hidden}
+.albC .cv img{width:100%;height:100%;object-fit:cover;display:block}
+.albC .ck{position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:var(--red);
+  cursor:pointer;margin:0;z-index:2;opacity:0;transition:.15s}
+.albC:hover .ck,.albC.sel .ck{opacity:1}
+.albC .dt{padding:9px 11px 11px;display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.albC .nm{font-size:12.5px;font-weight:600;line-height:1.42;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.albC .mt{font-size:10.5px;color:var(--dim2);font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.albC .go{margin-top:6px;font-size:11px;padding:4px 0;border-radius:7px;border:1px solid var(--red);
+  background:#fff;color:var(--red);cursor:pointer;font-family:inherit;transition:.13s}
+.albC .go:hover{background:var(--red);color:#fff}
+.albEmpty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:9px;color:var(--dim);text-align:center;padding:40px 20px}
+.albEmpty .bg{font-size:42px;color:#d7dbe2;line-height:1;opacity:.8}
+.albEmpty h3{font-size:15px;font-weight:600;color:var(--fg2)}
+.albEmpty p{font-size:12.5px;line-height:1.9;max-width:540px}
+.albEmpty code{font-family:ui-monospace,Consolas,monospace;background:#eef0f4;
+  padding:1px 6px;border-radius:5px;font-size:12px;color:#c8102e}
+
+
+/* ---- 设计工作台：内嵌在设计页里，不再跳走 ---- */
+.dwWrap{flex:1;min-height:0;display:none;background:#fff}
+.dwWrap.on{display:flex}
+.dwWrap iframe{flex:1;width:100%;border:0;display:block;background:#fff}
+main.studio-on .bar,main.studio-on .prog,main.studio-on .progwrap,
+main.studio-on .content,main.studio-on .albStage{display:none}
 
 /* 上传区 */
 .drop{
@@ -415,6 +493,17 @@ body.mode-album #vinylBox{display:none}
 .libdet .itm .n{font-size:12.5px;font-weight:600}
 .libdet .itm .lk{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
 .libleer{text-align:center;color:var(--dim);font-size:12.5px;padding:34px 10px}
+/* ---- 作品库品类筛选（2026-09-19：商品图与迷你CD设计合并成同一个库）----
+   以前两套「做过的」入口各管一摊（作品库 / 项目库），现在只留这一个，
+   两类任务同一条时间线，靠这里切品类。 */
+.libcat{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.libcat button{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid var(--line);
+  background:#fff;color:var(--dim);cursor:pointer;font-family:inherit;transition:.13s}
+.libcat button:hover{border-color:var(--red);color:var(--red)}
+.libcat button.on{background:var(--red);border-color:var(--red);color:#fff}
+.librow .mi .tag.cat{background:#fdeef1;color:#a30d29}
+.libdet .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.libdet .lk{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
 </style>
 </head>
 <body data-page-node-id="Na2JkVOieEwQ90ny6oba1N">
@@ -426,7 +515,6 @@ body.mode-album #vinylBox{display:none}
       <p data-page-node-id="npHX1HRrunItCi5dYNPFnZ">封面母版抓取 · 30×50mm 播放界面合成</p>
     </div>
     <div class="side-body" data-page-node-id="WpJ6Z6VmjtDHN9g5U45AKR">
-      <a href="/packaging" style="display:block;margin:0 0 16px;padding:12px 14px;border-radius:8px;background:#e9eee6;color:#285a44;text-decoration:none;font-weight:600">专辑包装工坊 <span style="float:right">↗</span></a>
       <div class="tabs" data-page-node-id="zjZLishYm1QDxDGAwcPHVX">
         <button data-m="artist" class="on" data-page-node-id="K57GPO7tK79MOdA0Lzt03R">歌手热门</button>
         <button data-m="album" data-page-node-id="AlbTab0Xq7Lm2NvB4tRwZ">专辑全集</button>
@@ -503,6 +591,7 @@ body.mode-album #vinylBox{display:none}
           数据源为网易云（专辑列表不受版权影响，周杰伦这类也可拿到全量）。
         </div>
       </div>
+
 
       <!-- 单曲 -->
       <div class="pane" id="p-song" data-page-node-id="F300gSKyyCohBAzBWvzY7C">        <div class="fld" data-page-node-id="jnMoBCVpGreAVuHHD1GG96">
@@ -679,6 +768,12 @@ body.mode-album #vinylBox{display:none}
         </p>
       </div>
     </div>
+
+    <!-- 专辑工作台：搜索结果铺在主区；点一张就地换成设计工作台（iframe，不再跳页） -->
+    <div class="albStage" id="albStage" hidden></div>
+    <div class="dwWrap" id="dwWrap">
+      <iframe id="dwFrame" src="about:blank" title="迷你CD 设计工作台"></iframe>
+    </div>
   </main>
 </div>
 
@@ -689,6 +784,11 @@ body.mode-album #vinylBox{display:none}
       <b data-page-node-id="LibT0Xq7Lm2NvB4tRw9">作品库</b>
       <small id="libsum" data-page-node-id="LibSum3QmNr6sVbXp2"></small>
       <span class="sp"></span>
+      <div class="libcat" id="libcat" data-page-node-id="LibCat0Xq7Lm2Nv">
+        <button data-c="all" class="on" data-page-node-id="LibCat1Xq7Lm2Nv">全部</button>
+        <button data-c="work" data-page-node-id="LibCat2Xq7Lm2Nv">商品图</button>
+        <button data-c="minicd" data-page-node-id="LibCat3Xq7Lm2Nv">迷你CD设计</button>
+      </div>
       <button class="btn" id="libRefresh" data-page-node-id="LibRf4Zr8Wv3Tq6YnA1">刷新</button>
       <button class="btn" id="libClose" data-page-node-id="LibCl5Zr8Wv3Tq6YnA2">关闭</button>
     </div>
@@ -833,6 +933,176 @@ let VINYL_W = 1200;
 let ALBUM_SIZE  = 1500;
 let ALBUM_FOUND = null;   // 查询到的 {artist, count} —— 给提交时做提示用
 let ALBUM_LIST = [];      // 最近一次专辑列表（含 id/pic）——「设计这张专辑」按钮用
+let ALBUM_SEL  = new Set(); // 已勾选的专辑下标（批量设计用）
+
+/* 把 ALBUM_SEL 回写到 DOM：行高亮 / 复选框 / 计数 / 批量按钮。
+   🔴 只做局部更新，不整体重渲染 —— 92 张专辑重渲染会把滚动位置弹回顶部。 */
+function syncSel(){
+  const box = $('#albStage') || $('#albumBox');
+  if(!box) return;
+  // 支持两套卡片类：旧紧凑行 .srow/.cb 与专辑工作台卡片 .albC/.ck
+  const rows = box.querySelectorAll('.srow, .albC');
+  rows.forEach(r=>{
+    const i = parseInt(r.dataset.i,10), on = ALBUM_SEL.has(i);
+    r.classList.toggle('sel', on);
+    const cb = r.querySelector('.cb, .ck');
+    if(cb) cb.checked = on;
+  });
+  const c = $('#selCount');   if(c) c.textContent = ALBUM_SEL.size;
+  const t = $('#selTotal');   if(t) t.textContent = ALBUM_LIST.length;
+  const b = $('#btnDesignSel');
+  if(b){
+    b.disabled = !ALBUM_SEL.size;
+    b.textContent = '设计选中的 ' + ALBUM_SEL.size + ' 张';
+  }
+}
+
+/* ---------------- 专辑工作台 / 设计工作台（2026-09-19 融合） ----------------
+   点一张专辑 → 右侧主区就地换成设计工作台（iframe 载入 design.html?embed=1）。
+   URL 不变、左栏不丢 —— 从头到尾只有一个工作台，不再「跳走」。 */
+let ARTIST_Q = '';    // 最近一次查询到的歌手名
+let DW_URL   = '';    // 当前 iframe 载入的地址（重复点同一张不重载，免得丢掉已生成的结果）
+
+/* 弹层切换：专辑网格 与 生成结果 共用主区，同一时刻只显示一个 */
+function showAlbumStage(){
+  const s = $('#albStage'); if(s) s.hidden = false;
+  const c = $('#content');  if(c) c.hidden = true;
+  /* 顶栏标题跟着一起走 —— 不然主区已经是专辑墙了，标题还写着「未开始」 */
+  if(ALBUM_LIST.length)
+    setTitle(ARTIST_Q + ' · 专辑全集',
+             '共 ' + ALBUM_LIST.length + ' 张专辑 · 点封面就地进设计工作台');
+}
+function hideAlbumStage(){
+  const s = $('#albStage'); if(s) s.hidden = true;
+  const c = $('#content');  if(c) c.hidden = false;
+}
+/* 打开设计工作台 */
+function openStudio(params){
+  const w = $('#dwWrap'), f = $('#dwFrame');
+  if(!w || !f) return;
+  const u = new URLSearchParams(params || {});
+  u.set('embed', '1');
+  const url = 'design.html?' + u.toString();
+  if(DW_URL !== url) f.src = url;
+  DW_URL = url;
+  $('main').classList.add('studio-on');
+  w.classList.add('on');
+  const s = $('#albStage'); if(s) s.hidden = true;
+}
+/* 返回（设计页里点「← 返回」触发） */
+function closeStudio(){
+  const w = $('#dwWrap'); if(w) w.classList.remove('on');
+  $('main').classList.remove('studio-on');
+  DW_URL = '';
+  const f = $('#dwFrame'); if(f) f.src = 'about:blank';
+  /* 从作品库点进去的 → 回作品库（重读一次磁盘，刚生成的会立刻出现） */
+  if(MODE === 'proj'){ libOpen('minicd'); return; }
+  if(ALBUM_LIST.length) showAlbumStage();
+  else { const a = $('#albStage'); if(a) { renderAlbumStage(); showAlbumStage(); } }
+}
+/* 单张专辑 → 设计页参数（与 design.html 的 query 契约保持一致） */
+function albumParams(a){
+  const u = new URLSearchParams();
+  u.set('artist', ARTIST_Q || '');
+  u.set('album', (a && a.name) || '');
+  if(a && a.id)      u.set('id', String(a.id));
+  if(a && a.pic)     u.set('pic', a.pic);
+  if(a && a.company) u.set('company', a.company || '');
+  if(a && a.date)    u.set('date', a.date || '');
+  return u;
+}
+/* 搜索结果 → 右侧主区铺成专辑网格 */
+function renderAlbumStage(){
+  const box = $('#albStage'); if(!box) return;
+  const metaOf = a => [a.type, a.date,
+    (a.tracks === '' || a.tracks == null) ? '' : (a.tracks + '首')].filter(Boolean).join(' · ');
+  if(!ALBUM_LIST.length){
+    box.innerHTML = `<div class="albEmpty">
+        <div class="bg">◍</div>
+        <h3>搜索歌手，铺开他/她的全部专辑</h3>
+        <p>在左栏填歌手名点「查询」——这里会铺成专辑墙。<br>
+           点任意一张封面就地进入设计工作台；勾选多张可批量出稿。<br>
+           <em style="font-style:normal;color:var(--dim2)">数据源为网易云（专辑列表不受版权影响，周杰伦这类也可拿到全量）</em></p>
+      </div>`;
+    return;
+  }
+  const cards = ALBUM_LIST.map((a,i)=>`
+    <div class="albC" data-i="${i}">
+      <div class="cv">
+        <img src="${esc(asset(a.pic||''))}" alt="" loading="lazy">
+        <input type="checkbox" class="ck" data-i="${i}" aria-label="选中">
+      </div>
+      <div class="dt">
+        <b class="nm" title="${esc(a.name)}">${esc(a.name)}</b>
+        <span class="mt">${String(i+1).padStart(2,'0')} · ${esc(metaOf(a)||'—')}</span>
+        <button class="go" data-i="${i}">设计这张</button>
+      </div>
+    </div>`).join('');
+  box.innerHTML = `
+    <div class="albHead">
+      <div class="who">${esc(ARTIST_Q)}<em>网易云</em></div>
+      <div class="cnt">共 ${ALBUM_LIST.length} 张（含单曲 / EP / 演唱会 Live）</div>
+      <span class="sp"></span>
+    </div>
+    <div class="selbar">
+      <span>已选 <b id="selCount">0</b>/<span id="selTotal">0</span></span>
+      <span class="sp"></span>
+      <button id="selAll">全选</button>
+      <button id="selNone">清空</button>
+      <button id="btnDesignSel" class="primary" disabled>设计选中的 0 张</button>
+    </div>
+    <div class="albGrid">${cards}</div>`;
+
+  // 点卡片任意处 / 点「设计这张」→ 就地进设计工作台
+  box.querySelectorAll('.albC').forEach(c=>{
+    const i = parseInt(c.dataset.i,10);
+    c.onclick = ev=>{
+      if(ev.target.classList.contains('ck') || ev.target.classList.contains('go')) return;
+      openStudio(albumParams(ALBUM_LIST[i]));
+    };
+    const g = c.querySelector('.go');
+    if(g) g.onclick = ev=>{ ev.stopPropagation(); openStudio(albumParams(ALBUM_LIST[i])); };
+  });
+  // 复选框：多选（批量设计）
+  box.querySelectorAll('.ck').forEach(cb=>{
+    cb.onclick = ev=>{
+      ev.stopPropagation();
+      const i = parseInt(cb.dataset.i,10);
+      cb.checked ? ALBUM_SEL.add(i) : ALBUM_SEL.delete(i);
+      syncSel();
+    };
+  });
+  const sa = $('#selAll'), sn = $('#selNone'), bd = $('#btnDesignSel');
+  if(sa) sa.onclick = ()=>{ ALBUM_LIST.forEach((_,i)=>ALBUM_SEL.add(i)); syncSel(); };
+  if(sn) sn.onclick = ()=>{ ALBUM_SEL.clear(); syncSel(); };
+  if(bd) bd.onclick = ()=>{
+    const picked = [...ALBUM_SEL].sort((x,y)=>x-y).map(i=>{
+      const a = ALBUM_LIST[i] || {};
+      return {album:a.name||'', artist:ARTIST_Q||'', id:a.id||'',
+              pic:a.pic||'', company:a.company||'', date:a.date||''};
+    }).filter(x=>x.album && x.pic);
+    if(!picked.length) return toast('选中的专辑缺封面，换几张再试');
+    try{ sessionStorage.setItem('minuet_design_batch', JSON.stringify(picked)); }catch(e){}
+    openStudio({batch:'1'});
+  };
+  syncSel();
+}
+/* 设计页里的「← 返回专辑列表」：iframe 内拿不到外层函数，走 postMessage 回来 */
+window.addEventListener('message', e=>{
+  const d = e.data;
+  if(d && d.type === 'minuet-studio-back') closeStudio();
+});
+
+
+/* 项目库（2026-09-19）已经**整个撤掉**，并进作品库。
+   它曾是第二套「做过的」入口：第二套数据源（/api/design/projects，那条 HTTP
+   路由也已撤掉）、第二套网格、第二套回收站 —— 两个库迟早对不上。
+   现在只有一个：
+     入口 = 右上「作品库」按钮（弹层），库里用品类筛选分「商品图 / 迷你CD设计」
+     数据 = /api/jobs（商品图 + 迷你CD 合成一条时间线，服务端合并）
+     回看 = libRow（列表）/ libDetail + libDetailMini（展开详情）
+     清理 = /api/jobs/delete（**移入回收站**，不是删除）
+   别再新开第三个「库」。要加新品类就往 CAT_* / 筛选按钮上加。 */
 
 /* ---------------- 小工具 ---------------- */
 let toastT;
@@ -923,6 +1193,15 @@ $$('.tabs button').forEach(b=>{
     /* 专辑模式不产播放界面，所以「钥匙扣 / 白底商品图 / 黑胶」三个开关与它无关。
        留着会让用户以为勾了能多出图 —— 直接藏掉。 */
     document.body.classList.toggle('mode-album', MODE === 'album');
+    /* 「专辑全集」是工作台：主区常驻专辑墙。切到别的模式退回生成结果区。
+       （原来这里还有一支 'proj' ——「项目库」那个 tab 已经撤掉了，
+        作品库是唯一的「做过的」入口，见 libOpenStudio / closeStudio） */
+    if(MODE === 'album'){
+      if(!DW_URL){ renderAlbumStage(); showAlbumStage(); }
+    }else{
+      closeStudio();
+      hideAlbumStage();
+    }
   };
 });
 
@@ -1059,38 +1338,27 @@ $('#btnQueryAlbum').onclick = async ()=>{
   try{
     const d = await jget('/api/albums?name='+encodeURIComponent(name));
     ALBUM_FOUND = {artist: d.artist.name, count: d.count};
-    const rows = (d.albums||[]).map((a,i)=>`
-      <div class="srow">
-        <span class="i">${String(i+1).padStart(2,'0')}</span>
-        <span class="t" title="${esc(a.name)}">${esc(a.name)}</span>
-        <span class="a">${esc(a.type||'')}</span>
-        <span class="d">${esc(a.date||'')} · ${esc(String(a.tracks||''))}首</span>
-        <button class="btn-dz" data-i="${i}">设计这张专辑</button>
-      </div>`).join('');
+    ARTIST_Q = d.artist.name || '';
+    /* 左栏只留一句摘要 —— 专辑列表铺到右侧主区（专辑工作台），
+       窄栏里塞不下卡片墙，而且用户要的是「一搜索就铺开全部专辑」。 */
     $('#albumBox').innerHTML = `
       <div class="acard">
         <div style="width:46px;height:46px;border-radius:8px;background:#e8eaee;flex:none"></div>
         <div style="min-width:0">
           <div class="nm">${esc(d.artist.name)}<em class="src">网易云</em></div>
-          <div class="sub">共 ${d.count} 张专辑（含单曲 / EP / 演唱会）</div>
+          <div class="sub">共 ${d.count} 张专辑 · 右侧点封面即可设计</div>
         </div>
-      </div>
-      <div class="slist">${rows}</div>`;
+      </div>`;
     ALBUM_LIST = d.albums||[];
-    $$('#albumBox .btn-dz').forEach(b=>{
-      b.onclick = (ev)=>{
-        ev.stopPropagation();
-        const a = ALBUM_LIST[parseInt(b.dataset.i,10)] || {};
-        const u = new URLSearchParams();
-        u.set('artist', d.artist.name||'');
-        u.set('album', a.name||'');
-        if(a.id) u.set('id', String(a.id));
-        if(a.pic) u.set('pic', a.pic);
-        if(a.company) u.set('company', a.company||'');
-        if(a.date) u.set('date', a.date||'');
-        location.href = 'design.html?' + u.toString();
-      };
-    });
+    ALBUM_SEL.clear();
+    syncSel();
+
+    /* 铺开专辑工作台。先 closeStudio() 是为了退出上一张专辑的设计态
+       （否则新搜的歌手会被上一张的设计页挡住）。 */
+    closeStudio();
+    renderAlbumStage();
+    showAlbumStage();
+    /* 卡片点击 / 多选 / 批量 —— 全部由 renderAlbumStage() 内部绑定 */
     toast(`找到 ${d.artist.name}，共 ${d.count} 张专辑`);
   }catch(e){ toast(e.message); $('#albumBox').innerHTML=''; }
   finally{ btn.disabled = false; btn.textContent = '查询'; }
@@ -1287,6 +1555,7 @@ $('#btnGo').onclick = async ()=>{
   $('#btnGo').disabled = true;
   $('#btnGo').innerHTML = '<span class="spin"></span>生成中';
   $('#content').innerHTML = '';
+  hideAlbumStage();   /* 生成结果要显示在主区 → 收起专辑墙 */
   setTitle('任务已提交', '正在连接网易云…');
   setProgress(0);
   $('#btnZip').disabled = true; $('#btnOpen').disabled = true;
@@ -1587,6 +1856,7 @@ $('#btnOpen').onclick = async ()=>{
    历史作品依然在，不依赖内存里还有没有这个任务。 */
 
 let LIB_JOBS = [];        // 最近一次拉到的列表
+let LIB_CAT  = 'all';     // 品类筛选：all | work（商品图）| minicd（迷你CD设计）
 const LIB_OPEN = {};      // 哪些卡片展开了"回看"
 
 function libWhen(ts, s){
@@ -1604,9 +1874,57 @@ function libStatusTag(j){
   return '<span class="tag ok">完成</span>';
 }
 
+/* 迷你CD 的回看：出件摊开 + 打印件下载 + 直接进设计工作台。
+   🔴 件地址走 /api/design/file —— 迷你CD 的资源根是 outputs/迷你CD设计/，
+      不能用 /assets/（那条路被 jobs_dir_of 锁在 outputs/工作台/ 里）。
+   🔴 PDF 不能塞进 <img>（只会显示破图），缩略图必须滤掉。 */
+function libDetailMini(j){
+  let h = '<div class="libdet">';
+  if(j.empty)
+    h += '<div class="dt" style="color:#c02626">磁盘上找不到出件 —— 目录可能已被移动或清理。</div>';
+
+  const parts = (j.parts || []).filter(p => p && p.url && !/\.pdf$/i.test(p.url));
+  if(parts.length){
+    h += '<div class="dt">出件</div><div class="ims">' + parts.map(p =>
+      `<div class="c" onclick="zoom('${jsq(asset(p.url))}','${jsq(p.label)}')">
+         <img src="${esc(asset(p.url))}" alt="" loading="lazy"></div>`).join('') + '</div>';
+  }else{
+    h += '<div class="dt">没有可预览的图片件。</div>';
+  }
+
+  const dl = [];
+  if(j.overviewUrl) dl.push(['1:1 版面总览', j.overviewUrl]);
+  if(j.zipUrl) dl.push(['打包 ZIP（含 PDF 与 meta）', j.zipUrl]);
+  if(dl.length){
+    h += '<div class="dt" style="margin-top:12px">下载</div><div class="lk">'
+      + dl.map(([t, u]) => `<a class="mini" href="${esc(asset(u))}">${esc(t)}</a>`).join('')
+      + '</div>';
+  }
+
+  h += `<div class="acts">
+      <button class="btn" onclick="libOpenStudio('${jsq(j.id)}')">在设计工作台里打开</button>
+      <button class="btn" onclick="libReveal('${jsq(j.id)}')">打开文件夹</button>
+    </div>`;
+  return h + '</div>';
+}
+
+/* 从作品库直接进设计工作台。
+   MODE='proj' 现在只是个**内部标记**：「这次是从作品库进来的」——
+   设计页据此把返回按钮写成「← 返回作品库」，closeStudio 据此回来时
+   重新打开作品库（并预选迷你CD）。左栏没有对应的 tab/pane 了，
+   所以这里只动 MODE，不动任何 DOM。 */
+function libOpenStudio(id){
+  libClose();
+  MODE = 'proj';
+  $$('.tabs button').forEach(x=>x.classList.remove('on'));
+  document.body.classList.remove('mode-album');
+  openStudio({jid: id, from: 'proj'});
+}
+
 /* 回看：把这条作品里"产出了什么"摊开 —— 总览 + 每首的下载。
    商品图变体不写死 key，直接按对象里有的列出来（画布是可配置的）。 */
 function libDetail(j){
+  if(j.cat === 'minicd') return libDetailMini(j);
   let h = '<div class="libdet">';
   if(j.error) h += `<div class="dt" style="color:#c02626">失败原因：${esc(j.error)}</div>`;
 
@@ -1658,8 +1976,17 @@ function libDetail(j){
 
 function libRow(j){
   const c = j.counts || {};
+  const mini = j.cat === 'minicd';
   const bits = [];
-  if(j.mode === 'album'){
+  if(mini){
+    bits.push(j.batch ? `批量 ${c.minicd || 1} 张` : '迷你CD 1 套');
+    if(c.parts) bits.push(`${c.parts} 件`);
+    const dna = [j.mood, j.style].filter(Boolean).join(' / ');
+    if(dna) bits.push(dna);
+    if(j.trackCount) bits.push(`${j.trackCount} 首`);
+    if(j.hasAi) bits.push('AI 底图');
+    if(j.empty) bits.push('⚠ 磁盘上找不到出件');
+  }else if(j.mode === 'album'){
     bits.push(`${c.albums || c.songs || 0} 张专辑`);
     if(c.albumCards) bits.push(`专辑卡 ${c.albumCards}`);
   }else{
@@ -1670,39 +1997,56 @@ function libRow(j){
     if(c.grids) bits.push(`拼版 ${c.grids}`);
   }
   const srcTag = j.source ? ` · ${j.source === 'qq' ? 'QQ音乐' : '网易云'}` : '';
-  const modeTag = {artist:'歌手热门', album:'专辑全集', song:'单曲指定', upload:'上传封面'}[j.mode] || j.mode || '';
+  const modeTag = mini ? '迷你CD设计'
+    : ({artist:'歌手热门', album:'专辑全集', song:'单曲指定', upload:'上传封面'}[j.mode] || j.mode || '');
+  // 迷你CD 是同步出件，没有"耗时"这个概念
+  const when = esc(libWhen(j.createdTs, j.created));
+  const zipHref = mini ? (j.zipUrl || '') : ('/api/zip?id=' + j.id);
   return `<div class="librow" id="lib-${esc(j.id)}">
     <div class="hd">
       <div class="th" ${j.thumb ? `onclick="zoom('${jsq(asset(j.thumb))}','${jsq(j.title)}')"` : ''}>
         ${j.thumb ? `<img src="${esc(asset(j.thumb))}" alt="" loading="lazy">` : ''}
       </div>
       <div class="mi">
-        <div class="t">${libStatusTag(j)} ${esc(j.title || '未命名')}</div>
-        <div class="s">${esc(modeTag)}${esc(srcTag)} · ${esc(libWhen(j.createdTs, j.created))}
-          · 耗时 ${esc(j.elapsed || 0)}s</div>
-        <div class="s">${bits.join(' · ')}${c.songs ? '' : '（无产出）'}</div>
+        <div class="t">${mini ? '<span class="tag cat">迷你CD设计</span>' : libStatusTag(j)} ${esc(j.title || '未命名')}</div>
+        <div class="s">${esc(modeTag)}${esc(srcTag)} · ${when}${mini ? '' : ` · 耗时 ${esc(j.elapsed || 0)}s`}</div>
+        <div class="s">${bits.join(' · ')}${(mini ? c.parts : c.songs) ? '' : '（无产出）'}</div>
       </div>
       <div class="ops">
         <button class="btn" onclick="libToggle('${jsq(j.id)}')">回看</button>
-        <a class="mini" href="${API}/api/zip?id=${esc(j.id)}" title="打包下载">ZIP</a>
+        ${zipHref ? `<a class="mini" href="${esc(asset(zipHref))}" title="打包下载">ZIP</a>` : ''}
         <button class="btn" onclick="libReveal('${jsq(j.id)}')">文件夹</button>
-        <button class="btn del" onclick="libDel('${jsq(j.id)}')">删除</button>
+        <button class="btn del" onclick="libDel('${jsq(j.id)}')">回收站</button>
       </div>
     </div>
     <div class="libdet-holder" id="libd-${esc(j.id)}">${LIB_OPEN[j.id] ? libDetail(j) : ''}</div>
   </div>`;
 }
 
+/* 按品类筛出要显示的那一截（商品图与迷你CD 混在一条时间线里） */
+function libFiltered(){
+  if(LIB_CAT === 'minicd') return LIB_JOBS.filter(j => j.cat === 'minicd');
+  if(LIB_CAT === 'work')   return LIB_JOBS.filter(j => j.cat !== 'minicd');
+  return LIB_JOBS;
+}
+
 function libPaint(){
   const bd = $('#libbd');
-  if(!LIB_JOBS.length){
-    bd.innerHTML = '<div class="libleer">还没有任何作品。<br>' +
-      '在左侧配好参数、点「开始生成」做一批，就会自动出现在这里。</div>';
-    $('#libsum').textContent = '';
+  const list = libFiltered();
+  const catName = LIB_CAT === 'minicd' ? '迷你CD设计' : '商品图';
+  if(!list.length){
+    bd.innerHTML = '<div class="libleer">' + (LIB_JOBS.length
+      ? ('这个品类下还没有作品（' + esc(catName) + '）。<br>切回「全部」看看。')
+      : ('还没有任何作品。<br>在左侧配好参数、点「开始生成」做一批，就会自动出现在这里。'))
+      + '</div>';
+    $('#libsum').textContent = LIB_JOBS.length
+      ? ('共 ' + LIB_JOBS.length + ' 条 · 这个品类下 0 条') : '';
     return;
   }
-  $('#libsum').textContent = `共 ${LIB_JOBS.length} 条 · 最近的排在最前`;
-  bd.innerHTML = LIB_JOBS.map(libRow).join('');
+  $('#libsum').textContent = LIB_CAT === 'all'
+    ? ('共 ' + list.length + ' 条 · 最近的排在最前')
+    : (catName + ' ' + list.length + ' 条 · 全部 ' + LIB_JOBS.length + ' 条');
+  bd.innerHTML = list.map(libRow).join('');
 }
 
 async function libLoad(quiet){
@@ -1718,9 +2062,17 @@ async function libLoad(quiet){
   }
 }
 
-function libOpen(){
+/* 打开作品库。cat 可选（'minicd' / 'work' / 'all'）：
+   左栏「项目库」入口、以及从设计页返回时，用它预选品类。 */
+function libOpen(cat){
+  if(cat) libSetCat(cat);
   $('#lib').classList.add('on');
   libLoad(true);
+}
+/* 只切高亮与状态，不碰已拉到的列表 —— 切品类不该重新打一次网络。 */
+function libSetCat(cat){
+  LIB_CAT = (cat === 'minicd' || cat === 'work') ? cat : 'all';
+  $$('#libcat button').forEach(b => b.classList.toggle('on', b.dataset.c === LIB_CAT));
 }
 function libClose(){ $('#lib').classList.remove('on'); }
 
@@ -1738,23 +2090,32 @@ async function libReveal(id){
 
 async function libDel(id){
   const j = LIB_JOBS.find(x=>x.id === id) || {};
-  // 删除会把 outputs/工作台/<id>/ 整个目录删掉，不可恢复 —— 必须二次确认，
-  // 并且把"要删的是哪一条"写进确认框，避免点错行删错东西。
+  // 2026-09-19 起后端改成「移入 <所在库>/_trash/<时间戳>-<id>/」——**不是删除**。
+  // 所以文案必须跟着改：说成「删除且无法恢复」会让用户以为点完就没了，
+  // 而真实语义是能捞回来的；只说「移走」又不提去哪儿找，用户同样不敢点。
   const n = (j.counts && (j.mode === 'album' ? j.counts.albums : j.counts.songs)) || 0;
-  if(!confirm(`确定删除这条作品吗？\n\n${j.title || id}\n${n} ${j.mode === 'album' ? '张专辑' : '首'} · 图片文件会被一起删除，无法恢复。`))
+  const cnt = j.cat === 'minicd'
+    ? (((j.counts && j.counts.minicd) || 1) + ' 套（批量按任务记）')
+    : (n + ' ' + (j.mode === 'album' ? '张专辑' : '首'));
+  if(!confirm(`把这条作品移入回收站？\n\n${j.title || id}\n${cnt}\n\n` +
+      '不会删除文件：整个任务目录会被挪到该库下的 _trash/ 里。\n' +
+      '想找回，把它从 _trash/ 移回上一级目录即可。'))
     return;
   try{
-    await jpost('/api/jobs/delete', {id});
+    await jpost('/api/jobs/delete', {id, cat: j.cat || ''});
     delete LIB_OPEN[id];
     LIB_JOBS = LIB_JOBS.filter(x=>x.id !== id);
     libPaint();
-    toast('已删除');
+    toast('已移入回收站（未删除）');
   }catch(e){
-    toast('删除失败：' + e.message);
+    toast('移入回收站失败：' + e.message);
   }
 }
 
-$('#btnLib').onclick = libOpen;
+$$('#libcat button').forEach(b=>{
+  b.onclick = ()=>{ libSetCat(b.dataset.c); libPaint(); };
+});
+$('#btnLib').onclick = ()=> libOpen();
 $('#libClose').onclick = libClose;
 $('#libRefresh').onclick = ()=> libLoad(false);
 $('#lib').onclick = e=>{ if(e.target === $('#lib')) libClose(); };

@@ -194,7 +194,9 @@ if os.path.exists(pg):
           meta["fallbacks"])
     check("json 记录 design", bool(meta.get("design")), meta.get("design"))
     check("json 无 tracks（--no-tracks）", meta.get("tracks") == [], meta.get("tracks"))
-    for nm, want in (("disc", (472, 472)), ("cover", (969, 484)), ("back", (1280, 449))):
+    # 封底条 111.2mm（用户 2026-09-19 拍板固定结构）→ 1313px@300dpi。
+    # 旧基线 1280px 是 108.4mm 口径，已作废（曾让本 e2e 误报 FAIL）。
+    for nm, want in (("disc", (472, 472)), ("cover", (969, 484)), ("back", (1313, 449))):
         p = os.path.join(tmp, "预览-%s.jpg" % nm)
         if os.path.exists(p):
             check("预览-%s %s" % (nm, want), Image.open(p).size == want, Image.open(p).size)
@@ -230,7 +232,7 @@ if os.path.exists(m2):
     p2 = os.path.join(tmp2, "预览-back.jpg")
     if os.path.exists(p2):
         b2 = Image.open(p2)
-        check("补出的封底条尺寸达标", b2.size == (1280, 449), b2.size)
+        check("补出的封底条尺寸达标", b2.size == (1313, 449), b2.size)
         check("补出的封底条非空白", gray(b2).std() > 10, "%.1f" % gray(b2).std())
 else:
     check("缺件兜底产出 json", False, "缺 %s" % m2)

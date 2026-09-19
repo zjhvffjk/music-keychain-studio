@@ -1,159 +1,540 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Mini CD 专辑设计</title><style>
-:root{--bg:#f4f2ec;--card:#fffefa;--ink:#202924;--muted:#68736c;--line:#d7ddd5;--brand:#1f5a43;--warn:#a3542c}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 system-ui,"Microsoft YaHei",sans-serif}
-button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}a{color:var(--brand)}
-header,main{max-width:1480px;margin:auto;padding:0 4vw}
-header{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
-.brand{font:italic 27px Georgia,serif;text-decoration:none;color:var(--ink)}
-.hero{padding:34px 0 22px}.hero small{letter-spacing:2px;color:var(--brand);font-weight:700}
-.hero h1{font-size:clamp(26px,3.4vw,42px);margin:5px 0;font-weight:540}
-.hero p,.muted{color:var(--muted)}
-.flow{display:flex;gap:6px;flex-wrap:wrap;margin-top:16px}
-.flow span{font-size:11px;padding:5px 9px;border:1px solid var(--line);border-radius:20px;background:var(--card)}
-.flow span:not(:last-child):after{content:' →';color:var(--muted)}
-.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:22px}
-.card h2{font-size:17px;margin:0}
-.card h2 em{font-style:normal;color:var(--brand);margin-right:8px;font-family:Georgia,serif}
-.head{padding:18px 22px 12px}
-.body{padding:0 22px 20px}
-label.field{display:block;margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>折音 · 迷你CD 设计工作台</title><style>
+:root{--bg:#f4f2ec;--card:#fffefa;--ink:#202924;--muted:#68736c;--line:#d7ddd5;
+  --brand:#1f5a43;--brand2:#2c7a5b;--warn:#a3542c;--soft:#eef2ec;
+  --g-bleed:#ff00ff;--g-cut:#111111;--g-fold:#006ee6;--g-safe:#00965a}
+*{box-sizing:border-box}
+/* 🔴 hidden 属性会被作者样式里的 display:flex/grid 覆盖（UA 的 [hidden] 优先级更低），
+   必须显式兜底，否则「等待封面…」这类占位在图片出来后仍然显示。 */
+[hidden]{display:none !important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 system-ui,"Microsoft YaHei",sans-serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}a{color:var(--brand);text-decoration:none}
+h2{font-size:16px;margin:0}h3{font-size:12px;margin:0;letter-spacing:1px;color:var(--muted);font-weight:600}
+
+/* ---------- 顶栏 + 三模块 ---------- */
+.top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:9px 3vw;min-height:62px;background:rgba(244,242,236,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line)}
+.brand{font:italic 22px Georgia,serif;color:var(--ink)}
+.mods{display:flex;gap:4px;background:#eae7df;border:1px solid var(--line);border-radius:10px;padding:3px}
+.mods button{border:0;background:transparent;color:var(--muted);border-radius:7px;padding:7px 18px;font-size:13px;
+  font-weight:600;transition:.15s}
+.mods button:hover{color:var(--ink)}
+.mods button.on{background:var(--card);color:var(--brand);box-shadow:0 1px 3px rgba(20,25,40,.10)}
+.top .sp{flex:1}
+.top .back{font-size:12.5px;color:var(--muted);white-space:nowrap}
+
+/* ---------- 三栏 ---------- */
+.studio{display:grid;grid-template-columns:236px minmax(0,1fr) 328px;gap:18px;align-items:start;
+  max-width:1620px;margin:0 auto;padding:18px 3vw 70px}
+.rail,.insp{position:sticky;top:80px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.rblk,.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.rblk{padding:14px}
+.rblk h3{margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.rblk h3 b{color:var(--brand);font-variant-numeric:tabular-nums}
+.card{margin-bottom:16px;overflow:hidden}
+.head{padding:16px 20px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.head h2{flex:1;min-width:0}
+.body{padding:0 20px 18px}
+.card.wide{padding:14px}
+
+/* 左栏：项目卡 */
+.proj{display:flex;gap:11px;align-items:center}
+.proj img{width:52px;height:52px;border-radius:9px;object-fit:cover;background:#e8eaee;flex:none;display:block}
+.proj .t{min-width:0}
+.proj .t b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj .t small{color:var(--muted);font-size:11.5px}
+
+/* 左栏：部件 / 分段导航 */
+.nav{list-style:none;margin:0;padding:0}
+.nav li{display:flex;gap:8px;align-items:baseline;padding:7px 9px;border-radius:8px;font-size:12.5px;
+  cursor:pointer;transition:.13s;border:1px solid transparent}
+.nav li:hover{background:var(--soft)}
+.nav li.on{background:var(--soft);border-color:var(--brand2)}
+.nav li .no{color:var(--brand);font-weight:700;flex:none}
+.nav li .nm{flex:1;min-width:0}
+.nav li .mm{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+.chip{display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:#e4ede7;
+  color:var(--brand);margin-right:4px;white-space:nowrap}
+.segLine{display:block;padding:7px 9px 9px;border-bottom:1px dashed #e7e9e4}
+.segLine:last-child{border-bottom:0}
+.segLine b{font-size:12.5px}
+.segLine .w{color:var(--muted);font-size:11px;margin-left:5px;font-variant-numeric:tabular-nums}
+.segLine .rs{margin-top:4px;display:block}
+
+/* ---------- 表单 ---------- */
+label.field{display:block;margin:11px 0 0;font-size:12.5px;color:var(--muted)}
 .input,textarea{border:1px solid var(--line);border-radius:7px;padding:9px 10px;background:#fff;color:var(--ink);min-width:0}
 .input{width:100%}textarea{width:100%;resize:vertical;line-height:1.7}
-.btn{background:var(--brand);color:#fff;border:1px solid var(--brand);border-radius:7px;padding:10px 15px;font-weight:650;font-size:13px}
-.plain{background:transparent;color:var(--brand);border:1px solid var(--line);border-radius:7px;padding:10px 15px;font-size:13px}
-.alert{border:1px solid #e3b7a5;background:#fbeee7;color:var(--warn);border-radius:10px;padding:10px 14px;margin:16px 0}
-.side{position:sticky;top:16px}
-.preview{width:100%;border-radius:10px;border:1px solid var(--line);display:block}
-.preview.blank{aspect-ratio:1;background:#ecefe9;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.btn{background:var(--brand);color:#fff;border:1px solid var(--brand);border-radius:7px;padding:10px 15px;
+  font-weight:650;font-size:13px;transition:.15s}
+.btn:hover:not(:disabled){background:var(--brand2)}
+.plain{background:#fff;color:var(--brand);border:1px solid var(--line);border-radius:7px;padding:10px 15px;font-size:13px;transition:.15s}
+.plain:hover{border-color:var(--brand)}
+.plain.sm,.btn.sm{padding:4px 10px;font-size:11.5px;border-radius:6px}
+.wide{width:100%;justify-content:center}
+.row2{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.alert{border:1px solid #e3b7a5;background:#fbeee7;color:var(--warn);border-radius:10px;
+  padding:10px 14px;margin:14px 3vw 0;max-width:1560px}
+/* 历史项目提示条（从首页项目库 ?jid= 进来时显示） */
+.hist{border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:10px;
+  padding:9px 14px;margin:14px 3vw 0;max-width:1560px;font-size:12.5px;display:flex;
+  align-items:center;gap:9px;flex-wrap:wrap}
+.hist b{color:var(--brand);font-variant-numeric:tabular-nums}
+.hist a{margin-left:auto;font-size:12px;color:var(--brand);text-decoration:none;
+  border:1px solid var(--brand);border-radius:7px;padding:3px 10px;transition:.13s;white-space:nowrap}
+.hist a:hover{background:var(--brand);color:#fff}
+/* 左栏「最近设计」——折音的项目库落成一条紧凑列表
+   🔴 放在左栏最末：工作时「当前专辑 / 部件 / 语义角色」要留在首屏，
+      项目库是跳转用的，不该把工作信息顶下去。 */
+.rproj{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;
+  padding:7px 8px;border-radius:9px;cursor:pointer;border:1px solid transparent;
+  transition:.13s}
+.rproj:hover{background:var(--soft);border-color:var(--line)}
+.rproj.on{background:var(--soft);border-color:var(--brand)}
+.rproj .rt{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.rproj small{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.rproj .ropen{grid-column:2;grid-row:1/3;align-self:center;font-size:11px;padding:3px 10px;
+  border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);
+  cursor:pointer;font-family:inherit;transition:.13s;white-space:nowrap}
+.rproj .ropen:hover{background:var(--brand);color:#fff}
+.muted{color:var(--muted)}
+.adv{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+.adv summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
+.adv .input{margin-top:8px}
+.sw{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.sw input{width:14px;height:14px;accent-color:var(--brand);cursor:pointer}
+
+/* AI 槽 */
+.aiSlot{border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:10px;display:flex;gap:12px;align-items:center}
+.aiSlot img{width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block}
+.aiSlot .t{flex:1;min-width:0}.aiSlot .t b{font-size:13px}
+.aiSlot .t small{display:block;color:var(--muted)}
+
+/* ---------- 实尺寸画布 ---------- */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-bottom:12px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:16px;height:0;border-top:2px dashed #999;display:block}
+.stage{background:#e9ece6;border:1px solid var(--line);border-radius:12px;padding:26px 22px;
+  overflow:auto;width:fit-content;max-width:100%}
+.stageRow{display:flex;gap:22px;align-items:center;margin-bottom:26px}
+.stageRow:last-child{margin-bottom:0}
+.slab{flex:none;width:150px;font-size:12px;color:var(--muted)}
+.slab b{display:block;font-size:13px;color:var(--ink);margin-bottom:3px}
+.swrap{position:relative;width:var(--w);height:var(--h);flex:none}
+.piece{position:relative;width:100%;height:100%;overflow:hidden;background:#fff;
+  border:1px solid var(--g-cut);box-shadow:0 1px 5px rgba(20,25,40,.14)}
+.piece img{width:100%;height:100%;object-fit:cover;display:block}
+.swrap.disc .piece{border-radius:50%}
+.swrap.disc .g.bleed,.swrap.disc .g.safe,.swrap.disc .g.holeg{border-radius:50%}
+.g{position:absolute;pointer-events:none;display:none}
+body.guides .g{display:block}
+/* 三层辅助线挤在 6mm 的带里会糊成一片 → 用不透明度分层：裁切最实、出血次之、安全区最淡 */
+.g.bleed{left:calc(-1*var(--bl));top:calc(-1*var(--bl));right:calc(-1*var(--bl));bottom:calc(-1*var(--bl));
+  border:1px dashed var(--g-bleed);opacity:.75}
+.g.safe{inset:3mm;border:1px dashed var(--g-safe);opacity:.5}
+.g.fold{top:0;bottom:0;width:0;border-left:1px dashed var(--g-fold)}
+.g.holeg{left:50%;top:50%;transform:translate(-50%,-50%);width:var(--hc);height:var(--hc);
+  border:1px dashed #889}
+.cap{font-size:12px;color:var(--muted);margin:10px 0 0}
+.empty{color:var(--muted);font-size:13px;padding:22px 0;text-align:center}
+
+/* 打印 / 导出 */
+.dlRow{display:flex;gap:10px;flex-wrap:wrap}
+.dlRow a{display:inline-flex;align-items:center;gap:6px}
+.dlItem{display:flex;gap:12px;align-items:center;padding:11px 13px;border:1px solid var(--line);
+  border-radius:10px;margin-bottom:9px;background:#fbfbfa}
+.dlItem .ic{width:34px;height:34px;border-radius:8px;background:var(--soft);color:var(--brand);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none}
+.dlItem .t{flex:1;min-width:0}
+.dlItem .t b{font-size:13px;display:block}
+.dlItem .t small{color:var(--muted);font-size:11.5px}
+.printTip{font-size:12.5px;color:var(--muted);background:var(--soft);border-radius:10px;padding:11px 14px;margin-top:14px}
+.sheetBox{margin-top:14px}.sheetBox img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+
+/* 批量 */
+.batchList{display:flex;flex-direction:column;gap:7px;margin-bottom:10px;max-height:280px;overflow-y:auto}
+.batchItem{display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);
+  border-radius:8px;background:#fbfbfa}
+.batchItem .bi{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+.batchItem .bth{width:30px;height:30px;border-radius:6px;object-fit:cover;background:#e8eaee;flex:none;display:block}
+.batchItem .bt{flex:1;min-width:0;display:flex;flex-direction:column}
+.batchItem .bt b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batchItem .bt small{color:var(--muted);font-size:11px}
+.batchGal{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:16px}
+.bcell{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.bcell .bh{padding:8px 11px;font-size:12.5px;font-weight:600;border-bottom:1px solid var(--line)}
+.bcell .bh small{display:block;font-weight:400;color:var(--muted);font-size:11px;margin-top:2px}
+.bcell .bparts{display:flex;gap:6px;padding:8px;align-items:flex-start}
+.bcell .bparts a{display:block;min-width:0}
+.bcell .bparts a:first-child{flex:0 0 28%}
+.bcell .bparts a+a{flex:1}
+.bcell .bparts img{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff;display:block}
+.bcell .bfoot{padding:0 11px 10px;font-size:12px}
+
+/* 设计语言 */
 .swatches{display:flex;gap:6px;margin:12px 0 0;flex-wrap:wrap}
 .swatches i{width:26px;height:26px;border-radius:7px;border:1px solid rgba(0,0,0,.12);display:block}
-.dnaTag{font-size:11px;padding:3px 9px;border-radius:14px;background:#eef2ec;border:1px solid var(--line);margin-right:6px}
+.dnaTag{font-size:11px;padding:3px 9px;border-radius:14px;background:var(--soft);border:1px solid var(--line);margin-right:6px}
 .notes{margin:12px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--muted)}
 .notes li{padding:5px 0 5px 16px;position:relative;border-bottom:1px dashed #e7e9e4}
 .notes li:before{content:'·';position:absolute;left:4px;color:var(--brand);font-weight:700}
-.aiSlot{border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:10px;display:flex;gap:12px;align-items:center}
-.aiSlot img{width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
-.aiSlot .t{flex:1;min-width:0}.aiSlot .t b{font-size:13px}.aiSlot .t small{display:block;color:var(--muted)}
-.resParts{display:grid;grid-template-columns:170px minmax(0,1fr);gap:10px;align-items:start;margin-top:6px}
-.resParts .cap{font-size:12px;color:var(--muted);margin:4px 0 10px}
-.resParts img{max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
-.stripBox img{width:100%}
-.sheetBox{margin-top:16px}.sheetBox img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
-.dlRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-.printTip{font-size:12.5px;color:var(--muted);background:#eef2ec;border-radius:10px;padding:10px 14px;margin-top:14px}
-.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:r 0.8s linear infinite;vertical-align:-2px;margin-right:6px}
+.preview{width:100%;border-radius:10px;border:1px solid var(--line);display:block}
+.preview.blank{aspect-ratio:1;background:#ecefe9;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+  border-radius:50%;animation:r .8s linear infinite;vertical-align:-2px;margin-right:6px}
+.spin.dk{border-color:rgba(31,90,67,.25);border-top-color:var(--brand)}
 @keyframes r{to{transform:rotate(360deg)}}
-@media(max-width:980px){.grid{grid-template-columns:1fr}.side{position:static}}
-</style></head><body>
-<header><a href="/" class="brand">Minuet</a><a href="/">← 音乐卡片工坊</a></header>
-<main>
-<section class="hero"><small>AI MINI CD DESIGN STUDIO</small><h1>从一张封面，衍生一整套迷你唱片。</h1>
-<p>按 111.2mm 固定盒体结构，程序读取封面 Visual DNA 自动衍生三件；AI 底图可选增强。</p>
-<div class="flow"><span>① 数据确认</span><span>② 设计语言</span><span>③ AI 增强（可选）</span><span>④ 生成三件套</span><span>⑤ 打印制作</span></div></section>
+@media(max-width:1180px){
+  .studio{grid-template-columns:minmax(0,1fr)}
+  .rail,.insp{position:static;flex-direction:row;flex-wrap:wrap}
+  .rail .rblk,.insp .card{flex:1 1 260px}
+}
+
+/* ---------- 内嵌模式（?embed=1）----------
+   被商品图工作台用 iframe 内嵌时：去掉自己的品牌与「返回工坊」链接，
+   顶栏只剩三模块切换，看起来就是外层工作台的一条工具条；
+   再把配色对齐外层（红色系），两边不会像「两个工作台」。
+   独立访问 /design 时保持原样，不受影响。 */
+body.embed{
+  --bg:#f4f5f7;--card:#ffffff;--ink:#1b1e25;--muted:#5f6672;--line:#e4e6eb;
+  --brand:#c8102e;--brand2:#e11d38;--warn:#b45309;--soft:#fdeef1;
+}
+body.embed .top{
+  padding:8px 18px;min-height:54px;background:rgba(255,255,255,.94);
+  border-bottom:1px solid var(--line);
+}
+body.embed .brand{display:none}
+body.embed .mods{background:#f1f2f5;border-color:var(--line)}
+body.embed .mods button{padding:6px 16px;font-size:12.5px}
+body.embed .top .back{
+  font-size:12.5px;color:var(--fg2);border:1px solid var(--line);border-radius:7px;
+  padding:5px 12px;background:#fff;transition:.14s;
+}
+body.embed .top .back:hover{border-color:var(--red,#c8102e);color:#c8102e}
+body.embed .studio{max-width:none;padding:14px 18px 60px;gap:14px;
+  grid-template-columns:212px minmax(0,1fr) 300px}
+body.embed .rail,body.embed .insp{top:68px}
+body.embed .rblk:first-child .proj img{width:44px;height:44px}
+body.embed .proj .t small{display:none}   /* 外层已有专辑名，这里不重复 */
+/* 阈值要按「iframe 自己的宽度」算：外层左栏占掉 352px，1600 的屏里
+   iframe 只有 ~1250px。原来跟着 .studio 的 1400 走会把三栏压成单栏。 */
+@media(max-width:1080px){
+  body.embed .studio{grid-template-columns:minmax(0,1fr)}
+  body.embed .rail,body.embed .insp{position:static;flex-direction:row;flex-wrap:wrap}
+  body.embed .rail .rblk,body.embed .insp .card{flex:1 1 240px}
+}
+</style></head><body class="guides">
+<header class="top">
+  <a href="/" class="brand">Minuet</a>
+  <nav class="mods" id="mods">
+    <button data-mod="design" class="on">设计</button>
+    <button data-mod="print">打印制作</button>
+    <button data-mod="export">导出</button>
+  </nav>
+  <span class="sp"></span>
+  <a href="/" class="back" id="backLnk">← 音乐卡片工坊</a>
+</header>
 <div id="error" class="alert" hidden></div>
+<div id="histNote" class="hist" hidden></div>
 
-<div class="grid">
-<div>
-  <!-- ① 数据确认 -->
-  <section class="card"><div class="head"><h2><em>①</em>数据确认</h2></div>
-  <div class="body">
-    <label class="field">专辑名<input id="album" class="input"></label>
-    <label class="field">歌手<input id="artist" class="input"></label>
-    <label class="field">厂牌（可选）<input id="company" class="input" placeholder="留空则不出厂牌行"></label>
-    <label class="field">曲目（分号或换行分隔；留空则封底走金句版式）<textarea id="tracks" rows="4" placeholder="曲名1;曲名2;曲名3"></textarea></label>
-    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-      <button id="btnRead" class="plain">读取设计语言</button>
-      <button id="btnBuild" class="btn" disabled>生成三件套</button>
-      <span id="buildState" class="muted" style="align-self:center"></span>
+<div class="studio">
+  <!-- ==================== 左栏 ==================== -->
+  <aside class="rail">
+    <div class="rblk">
+      <h3>当前专辑</h3>
+      <div class="proj">
+        <img id="railCover" alt="" hidden>
+        <div class="t"><b id="railAlbum">未选择</b><small id="railArtist">从「专辑全集」进来会自动带上</small></div>
+      </div>
     </div>
-  </div></section>
-
-  <!-- ③ AI 增强 -->
-  <section class="card"><div class="head"><h2><em>③</em>AI 增强（可选，不上传则全部程序衍生）</h2></div>
-  <div class="body">
-    <p class="muted" style="margin:0;font-size:12.5px">想用 AI 生成的底图替换某一件时在此上传；未上传的件仍由程序按封面衍生，保证三件成套。</p>
-    <div class="aiSlot" data-key="aiDisc"><input type="file" accept="image/*" hidden><img class="pv" hidden><div class="t"><b>① 盘面（Ø40mm 方形底图）</b><small class="st">未上传</small></div><button class="plain up">上传</button><button class="plain clr" hidden>清除</button></div>
-    <div class="aiSlot" data-key="aiFold"><input type="file" accept="image/*" hidden><img class="pv" hidden><div class="t"><b>② 封面折件（82×41 展开图）</b><small class="st">未上传</small></div><button class="plain up">上传</button><button class="plain clr" hidden>清除</button></div>
-    <div class="aiSlot" data-key="aiStrip"><input type="file" accept="image/*" hidden><img class="pv" hidden><div class="t"><b>③ 封底条（111.2×38 展开图）</b><small class="st">未上传</small></div><button class="plain up">上传</button><button class="plain clr" hidden>清除</button></div>
-  </div></section>
-
-  <!-- ⑤ 打印制作 -->
-  <section class="card" id="printCard" hidden><div class="head"><h2><em>⑤</em>打印制作</h2></div>
-  <div class="body">
-    <div class="dlRow">
-      <a id="lnkPrint" class="btn" target="_blank">打开 A4 打印拼版 (PNG)</a>
-      <a id="lnkPdf" class="plain" target="_blank">PDF 版</a>
-      <a id="lnkZip" class="plain" href="#">下载 ZIP 打包</a>
-      <a id="lnkFolder" class="plain" href="#" onclick="return false" hidden></a>
+    <div class="rblk">
+      <h3>部件（111.2mm 固定结构）</h3>
+      <ul class="nav" id="partNav"><li class="muted">加载规格中…</li></ul>
     </div>
-    <div class="printTip">🖨️ 打印设置务必选「<b>实际大小 / 100%</b>」（默认「适合页面」会把 40mm 缩成 38mm）。打印后先量页脚 <b>50mm 校验尺</b>是否准确，再裁切：盘面沿模切圆、封底条沿四道折线折叠（右封 4.4 → 封底 49 → 左封 4.4 → 背脊 4.4 → 内盘底 49）。</div>
-  </div></section>
+    <div class="rblk">
+      <h3>封底条分段与语义角色</h3>
+      <div id="segNav"><p class="muted" style="margin:0;font-size:12.5px">加载规格中…</p></div>
+    </div>
+    <div class="rblk" id="batchBlk" hidden>
+      <h3>批量队列 <b id="batchCount">0</b></h3>
+      <div id="batchList" class="batchList"></div>
+      <button id="btnBatch" class="btn wide" disabled>开始批量生成</button>
+      <div id="batchState" class="muted" style="font-size:12px;margin-top:8px"></div>
+    </div>
+    <div class="rblk" id="railProjBlk">
+      <h3>最近设计 <b id="railProjCount">0</b></h3>
+      <div id="railProj"><p class="muted" style="margin:0;font-size:12px">读取中…</p></div>
+    </div>
+  </aside>
+
+  <!-- ==================== 中栏 ==================== -->
+  <main>
+    <!-- ---- 模块：设计 ---- -->
+    <section class="mod" id="mod-design">
+      <section class="card" id="dataCard">
+        <div class="head"><h2><em>①</em> 数据确认</h2></div>
+        <div class="body">
+          <label class="field">专辑名<input id="album" class="input"></label>
+          <label class="field">歌手<input id="artist" class="input"></label>
+          <label class="field">厂牌（可选）<input id="company" class="input" placeholder="留空则不出厂牌行"></label>
+          <label class="field">曲目（分号或换行分隔；留空则封底走金句版式）<textarea id="tracks" rows="4" placeholder="曲名1;曲名2;曲名3"></textarea></label>
+          <details class="adv"><summary>高级：取景可用带 safeBands</summary>
+            <p class="muted" style="margin:8px 0;font-size:12px">封面自带标题占了顶部 30% 时填 <code>0.30,1.0</code> —— 补件取景只落在下方可用区，根治「字压两遍」。留空 = 整幅取景。</p>
+            <input id="safeBands" class="input" placeholder="例如 0.30,1.0">
+          </details>
+          <div class="row2">
+            <button id="btnRead" class="plain">读取设计语言</button>
+            <button id="btnBuild" class="btn" disabled>生成三件套</button>
+            <span id="buildState" class="muted"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="aiCard">
+        <div class="head"><h2><em>③</em> AI 增强（可选，不上传则全部程序衍生）</h2></div>
+        <div class="body">
+          <p class="muted" style="margin:0;font-size:12.5px">想用 AI 生成的底图替换某一件时在此上传；未上传的件仍由程序按封面衍生，保证三件成套。</p>
+          <div class="aiSlot" data-key="aiDisc"><input type="file" accept="image/*" hidden><img class="pv" hidden><div class="t"><b>① 盘面（Ø40mm 方形底图）</b><small class="st">未上传</small></div><button class="plain sm up">上传</button><button class="plain sm clr" hidden>清除</button></div>
+          <div class="aiSlot" data-key="aiFold"><input type="file" accept="image/*" hidden><img class="pv" hidden><div class="t"><b>② 封面折件（82×41 展开图）</b><small class="st">未上传</small></div><button class="plain sm up">上传</button><button class="plain sm clr" hidden>清除</button></div>
+          <div class="aiSlot" data-key="aiStrip"><input type="file" accept="image/*" hidden><img class="pv" hidden><div class="t"><b>③ 封底条（111.2×38 展开图）</b><small class="st">未上传</small></div><button class="plain sm up">上传</button><button class="plain sm clr" hidden>清除</button></div>
+        </div>
+      </section>
+
+      <section class="card" id="resCard" hidden>
+        <div class="head"><h2><em>④</em> 实尺寸画布</h2>
+          <label class="sw"><input type="checkbox" id="cbGuides" checked> 印刷辅助线</label>
+        </div>
+        <div class="body">
+          <div class="legend" id="legend"></div>
+          <div class="stage" id="stage"></div>
+          <p class="cap" id="stageNote"></p>
+        </div>
+      </section>
+    </section>
+
+    <!-- ---- 模块：打印制作 ---- -->
+    <section class="mod" id="mod-print" hidden>
+      <section class="card" id="printCard">
+        <div class="head"><h2><em>⑤</em> 打印制作 · A4 拼版</h2></div>
+        <div class="body">
+          <div id="printEmpty" class="empty">还没有生成物 —— 先去「设计」模块生成三件套。</div>
+          <div id="printBody" hidden>
+            <div class="dlRow">
+              <a id="lnkPrint" class="btn" target="_blank">打开 A4 打印拼版 (PNG)</a>
+              <a id="lnkPdf" class="plain" target="_blank">印刷 PDF（含裁切/折线/出血/安全区）</a>
+            </div>
+            <div class="printTip">
+              🖨️ 打印设置务必选「<b>实际大小 / 100%</b>」（默认「适合页面」会把 40mm 缩成 38mm）。
+              打印后先量页脚 <b>50mm 校验尺</b>是否准确，再裁切：盘面沿模切圆、封底条沿四道折线折叠
+              （右封 4.4 → 封底 49 → 左封 4.4 → 背脊 4.4 → 内盘底 49）。
+            </div>
+            <div class="sheetBox"><img id="imSheet" alt="">
+              <div class="cap">1:1 印刷版面总览（含裁切线 / 折线 / 尺寸标注 / 50mm 校验尺）</div></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ---- 模块：导出 ---- -->
+    <section class="mod" id="mod-export" hidden>
+      <section class="card">
+        <div class="head"><h2>导出 · 单张</h2></div>
+        <div class="body">
+          <div id="exportEmpty" class="empty">还没有生成物 —— 先去「设计」模块生成三件套。</div>
+          <div id="exportBody" hidden>
+            <div id="dlList"></div>
+            <div class="dlRow" style="margin-top:12px">
+              <a id="lnkZip" class="btn" href="#">下载 ZIP 打包</a>
+              <button id="btnSpec" class="plain">下载生产规格 JSON</button>
+            </div>
+            <p class="cap">ZIP 内含三件 PNG、1:1 版面总览、A4 拼版 PNG/PDF 与 meta。</p>
+          </div>
+        </div>
+      </section>
+      <section class="card" id="batchRes" hidden>
+        <div class="head"><h2>导出 · 批量</h2></div>
+        <div class="body">
+          <div class="dlRow">
+            <a id="lnkBatchSheet" class="btn" target="_blank">打开多专辑对照图</a>
+            <a id="lnkBatchZip" class="plain" target="_blank">下载 ZIP 打包</a>
+          </div>
+          <div class="sheetBox"><img id="batchSheet" alt="">
+            <div class="cap">多专辑对照图（每行一张：左列专辑信息 + 右侧 ①②③ 三件，自带文字标注）</div></div>
+          <div id="batchGallery" class="batchGal"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- ==================== 右栏 ==================== -->
+  <aside class="insp">
+    <section class="card"><div class="head"><h2>封面母版</h2></div><div class="body">
+      <img id="cover" class="preview" hidden alt=""><div id="coverBlank" class="preview blank">等待封面…</div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0" id="picNote"></p>
+    </div></section>
+    <section class="card"><div class="head"><h2><em>②</em> 视觉 DNA</h2></div><div class="body">
+      <div id="dnaEmpty" class="muted" style="font-size:12.5px">点「读取设计语言」分析封面。</div>
+      <div id="dnaBody" hidden>
+        <div><span class="dnaTag" id="tagMood"></span><span class="dnaTag" id="tagStyle"></span></div>
+        <div class="swatches" id="swatches"></div>
+        <ul class="notes" id="notes"></ul>
+      </div>
+    </div></section>
+  </aside>
 </div>
 
-<!-- 侧栏：封面 + ② 设计语言 -->
-<aside class="side">
-  <section class="card"><div class="head"><h2>封面母版</h2></div><div class="body">
-    <img id="cover" class="preview" hidden alt=""><div id="coverBlank" class="preview blank">等待封面…</div>
-    <p class="muted" style="font-size:12px;margin:8px 0 0" id="picNote"></p>
-  </div></section>
-  <section class="card"><div class="head"><h2><em>②</em>设计语言</h2></div><div class="body">
-    <div id="dnaEmpty" class="muted" style="font-size:12.5px">点「读取设计语言」分析封面。</div>
-    <div id="dnaBody" hidden>
-      <div><span class="dnaTag" id="tagMood"></span><span class="dnaTag" id="tagStyle"></span></div>
-      <div class="swatches" id="swatches"></div>
-      <ul class="notes" id="notes"></ul>
-    </div>
-  </div></section>
-</aside>
-</div>
-
-<!-- ④ 结果 -->
-<section class="card" id="resCard" hidden><div class="head"><h2><em>④</em>三件套预览（111.2mm 固定结构）</h2></div>
-<div class="body">
-  <div class="resParts">
-    <div><img id="imDisc" alt=""><div class="cap">① 盘面 <b id="mmDisc"></b>（中心孔 Ø5mm）</div></div>
-    <div><img id="imCover" alt=""><div class="cap">② 封面折件 <b id="mmCover"></b>（沿中缝对折 41×41）</div></div>
-  </div>
-  <div class="stripBox"><img id="imStrip" alt=""><div class="cap">③ 封底条 <b id="mmStrip"></b>（四道折线：右封4.4 / 封底49 / 左封4.4 / 背脊4.4 / 内盘底49）</div></div>
-  <div class="sheetBox"><img id="imSheet" alt=""><div class="cap">1:1 印刷版面总览（含裁切线 / 折线 / 尺寸标注 / 50mm 校验尺）</div></div>
-</div></section>
-</main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rgb=c=>'rgb('+(Array.isArray(c)?c.join(','):c)+')';
 let ai={aiDisc:'',aiFold:'',aiStrip:''},building=false,read=false;
+let SPEC=null,LAST=null;
 function err(s){$('#error').hidden=!s;$('#error').textContent=s||''}
 function jparse(u){return fetch(u,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||('HTTP '+r.status));return d})}
 function normTracks(){return $('#tracks').value.replace(/[\n\r，；]+/g,';').split(';').map(t=>t.trim()).filter(Boolean)}
 
-/* ---- 初始化：URL 参数回填 ---- */
+/* ---------------- 三模块切换 ---------------- */
+function showMod(name){
+  document.querySelectorAll('.mods button').forEach(b=>b.classList.toggle('on', b.dataset.mod===name));
+  ['design','print','export'].forEach(m=>{ $('#mod-'+m).hidden = (m!==name); });
+}
+$('#mods').onclick=e=>{const b=e.target.closest('button[data-mod]');if(b)showMod(b.dataset.mod)};
+
+/* ---------------- 规格（唯一真源 /api/design/spec）---------------- */
+const FALLBACK_SPEC={  // 服务未重启时的兜底，值与 tools/spec_minicd.py 一致
+  unit:'mm',
+  parts:{disc:{w:40,h:40,hole:5},
+    booklet:{w:82,h:41,folds:[41]},
+    sleeve:{w:111.2,h:38,folds:[4.4,53.4,57.8,62.2],segments:[
+      {name:'右侧封',x:0,w:4.4,roles:['spine-artwork','spine-text']},
+      {name:'封底',x:4.4,w:49,roles:['tracks','barcode','copyright']},
+      {name:'左侧封',x:53.4,w:4.4,roles:['spine-artwork','spine-text']},
+      {name:'左侧封背面',x:57.8,w:4.4,roles:['spine-artwork','spine-text']},
+      {name:'内盘底',x:62.2,w:49,roles:['hidden-artwork','copy']}]}},
+  print:{bleedMm:3,dpi:300,safeMm:3},
+  guides:[{name:'出血线',color:[255,0,255]},{name:'裁切线',color:[17,17,17]},
+          {name:'折线',color:[0,110,230]},{name:'安全区',color:[0,150,90]}],
+  outputs:[]};
+const ROLE_CN={'spine-artwork':'侧封画面','spine-text':'侧封文字','tracks':'曲目','barcode':'条码',
+  'copyright':'版权声明','hidden-artwork':'隐藏主视觉','copy':'文案','artwork':'画面','title':'标题','artist':'歌手'};
+
+function renderRail(){
+  const P=SPEC.parts;
+  $('#partNav').innerHTML=`
+    <li data-part="disc"><span class="no">①</span><span class="nm">盘面</span><span class="mm">Ø${P.disc.w}</span></li>
+    <li data-part="booklet"><span class="no">②</span><span class="nm">封面折件</span><span class="mm">${P.booklet.w}×${P.booklet.h}</span></li>
+    <li data-part="sleeve"><span class="no">③</span><span class="nm">封底条</span><span class="mm">${P.sleeve.w}×${P.sleeve.h}</span></li>`;
+  $('#segNav').innerHTML=(P.sleeve.segments||[]).map(s=>`
+    <div class="segLine"><b>${esc(s.name)}</b><span class="w">${s.w}mm</span>
+      <span class="rs">${(s.roles||[]).map(r=>`<span class="chip">${esc(ROLE_CN[r]||r)}</span>`).join('')}</span></div>`).join('');
+  $('#partNav').onclick=e=>{
+    const li=e.target.closest('li[data-part]');if(!li)return;
+    document.querySelectorAll('#partNav li').forEach(x=>x.classList.toggle('on',x===li));
+    const t=document.querySelector('.stageRow[data-part="'+li.dataset.part+'"]');
+    if(t&&!$('#resCard').hidden){showMod('design');t.scrollIntoView({behavior:'smooth',block:'center'});}
+  };
+  const bl=(SPEC.print&&SPEC.print.bleedMm)||3;
+  $('#legend').innerHTML=(SPEC.guides||[]).map(g=>
+      `<span><i style="border-top-color:${rgb(g.color)}"></i>${esc(g.name)}</span>`).join('')
+    +'<span><i style="border-top-color:#889"></i>打穿孔</span>';
+  return bl;
+}
+
+function stageHTML(){
+  const P=SPEC.parts, bl=(SPEC.print&&SPEC.print.bleedMm)||3;
+  const folds=P.sleeve.folds||[];
+  const wrap=(cls,w,h,inner)=>`<div class="swrap ${cls}" style="--w:${w}mm;--h:${h}mm;--bl:${bl}mm">
+      <i class="g bleed"></i><i class="g safe"></i>${inner}</div>`;
+  return `
+  <div class="stageRow" data-part="disc">
+    <div class="slab"><b>① 盘面</b>Ø${P.disc.w}mm · 内孔 Ø${P.disc.hole}mm</div>
+    ${wrap('disc',P.disc.w,P.disc.h,`<div class="piece"><img id="imDisc" alt="">
+      <i class="g holeg" style="--hc:${P.disc.hole}mm"></i></div>`)}
+  </div>
+  <div class="stageRow" data-part="booklet">
+    <div class="slab"><b>② 封面折件</b>展开 ${P.booklet.w}×${P.booklet.h}mm · 对折 ${P.booklet.folds[0]}×${P.booklet.h}</div>
+    ${wrap('',P.booklet.w,P.booklet.h,`<div class="piece"><img id="imCover" alt="">
+      <i class="g fold" style="left:${P.booklet.folds[0]}mm"></i></div>`)}
+  </div>
+  <div class="stageRow" data-part="sleeve">
+    <div class="slab"><b>③ 封底条</b>${P.sleeve.w}×${P.sleeve.h}mm · ${folds.length} 道折线</div>
+    ${wrap('',P.sleeve.w,P.sleeve.h,`<div class="piece"><img id="imStrip" alt="">
+      ${folds.map(x=>`<i class="g fold" style="left:${x}mm"></i>`).join('')}</div>`)}
+  </div>`;
+}
+
+(async()=>{
+  try{ const d=await jparse('/api/design/spec'); SPEC=d.spec; }
+  catch(e){ SPEC=FALLBACK_SPEC; err('规格接口不可用（工作台需要重启），画布用内置兜底尺寸。'); }
+  const bl=renderRail();
+  $('#stage').innerHTML=stageHTML();
+  $('#stageNote').textContent='画布按 1:1 实际尺寸渲染（'+SPEC.parts.sleeve.w+'×'+SPEC.parts.sleeve.h+'mm 的封底条即实物大小）。'
+    +'出血 '+bl+'mm、安全区 '+(SPEC.print&&SPEC.print.safeMm||3)+'mm；灰色虚线圆为 Ø'+SPEC.parts.disc.hole+'mm 打穿孔。';
+})();
+
+$('#cbGuides').onchange=e=>document.body.classList.toggle('guides', e.target.checked);
+
+/* ---------------- 初始化：URL 参数回填 ---------------- */
 const q=new URLSearchParams(location.search);
+/* 内嵌模式（外层商品图工作台用 iframe 载入）：外层才是唯一的工作台外壳，
+   这里的品牌与「返回工坊」换成「← 返回专辑列表」，点它通知外层收起本工作台。
+   独立访问 /design 时不加这个 class，行为与配色完全不变。 */
+const EMBED = q.get('embed') === '1';
+/* 从哪儿进来的：作品库点进来的，返回按钮该说「返回作品库」
+   （「作品库」= 原来的作品库 + 项目库合并后的唯一一个库，见 index.html） */
+const FROM_PROJ = q.get('from') === 'proj';
+if(EMBED){
+  document.body.classList.add('embed');
+  const bk = $('#backLnk');
+  if(bk){
+    bk.textContent = FROM_PROJ ? '← 返回作品库' : '← 返回专辑列表';
+    bk.removeAttribute('href');
+    bk.style.cursor = 'pointer';
+    bk.onclick = e => {
+      e.preventDefault();
+      try{ parent.postMessage({type:'minuet-studio-back'}, '*'); }catch(err){}
+    };
+  }
+}
 $('#album').value=q.get('album')||'';
 $('#artist').value=q.get('artist')||'';
 $('#company').value=q.get('company')||'';
-const PIC=q.get('pic')||'';
-if(PIC){$('#cover').src=PIC;$('#cover').hidden=false;$('#coverBlank').hidden=true;
-  $('#picNote').textContent='来源：'+(q.get('id')?'专辑 ID '+q.get('id'):'上传/外部链接');}
+/* 🔴 let 而不是 const：从项目库 ?jid= 进来时要回填留档里的封面（有封面才能重跑） */
+let PIC=q.get('pic')||'';
+if(PIC){
+  $('#cover').src=PIC;$('#cover').hidden=false;$('#coverBlank').hidden=true;
+  $('#picNote').textContent='来源：'+(q.get('id')?'专辑 ID '+q.get('id'):'上传/外部链接');
+}
+function syncRail(){
+  const a=$('#album').value.trim()||'未选择', s=$('#artist').value.trim()||'—';
+  $('#railAlbum').textContent=a;$('#railArtist').textContent=s;
+  if(PIC){$('#railCover').src=PIC;$('#railCover').hidden=false;}
+}
+syncRail();
+$('#album').addEventListener('input',syncRail);
+$('#artist').addEventListener('input',syncRail);
 if(q.get('album')&&PIC) readDesign();
 
-/* ---- ② 设计语言 ---- */
+/* ---------------- ② 视觉 DNA ---------------- */
 async function readDesign(){
   if(!PIC)return err('缺少封面参数（pic）');
   err('');$('#dnaEmpty').hidden=true;$('#dnaBody').hidden=false;
   $('#tagMood').textContent='分析中…';
   try{
-    const u='/api/design/album?'+new URLSearchParams({artist:$('#artist').value,album:$('#album').value,pic:PIC,company:$('#company').value,tracks:normTracks().join(';')});
+    const u='/api/design/album?'+new URLSearchParams({artist:$('#artist').value,album:$('#album').value,
+      pic:PIC,company:$('#company').value,tracks:normTracks().join(';'),safeBands:$('#safeBands').value.trim()});
     const d=await jparse(u);
     $('#tagMood').textContent='调性 · '+d.design.mood;$('#tagStyle').textContent='风格 · '+d.design.style;
-    $('#swatches').innerHTML=(d.design.palette||[]).map(c=>`<i style="background:rgb(${c[0]},${c[1]},${c[2]})"></i>`).join('');
+    $('#swatches').innerHTML=(d.design.palette||[]).map(c=>`<i style="background:rgb(${c[0]},${c[1]},${c[2]})" title="${c.join(',')}"></i>`).join('');
     $('#notes').innerHTML=(d.notes||[]).map(t=>`<li>${esc(t)}</li>`).join('');
     read=true;$('#btnBuild').disabled=building;
   }catch(e){err(e.message);$('#dnaEmpty').hidden=false;$('#dnaBody').hidden=true;}
 }
 $('#btnRead').onclick=readDesign;
 
-/* ---- ③ AI 槽位 ---- */
+/* ---------------- ③ AI 槽位 ---------------- */
 document.querySelectorAll('.aiSlot').forEach(slot=>{
   const key=slot.dataset.key,file=slot.querySelector('input[type=file]');
   slot.querySelector('.up').onclick=()=>file.click();
@@ -175,29 +556,243 @@ document.querySelectorAll('.aiSlot').forEach(slot=>{
   };
 });
 
-/* ---- ④ 生成 ---- */
+/* ---------------- ④ 生成 ---------------- */
 $('#btnBuild').onclick=async()=>{
   if(building)return;
   const album=$('#album').value.trim(),artist=$('#artist').value.trim();
   if(!album||!artist)return err('专辑名与歌手都要填');
   if(!PIC)return err('缺少封面（从专辑列表进入会自动带上）');
   building=true;$('#btnBuild').disabled=true;err('');
-  $('#buildState').innerHTML='<span class="spin"></span>衍生三件套中，约几秒…';
+  $('#buildState').innerHTML='<span class="spin dk"></span>衍生三件套中，约几秒…';
   try{
     const body={artist,album,pic:PIC,company:$('#company').value.trim(),
-      tracks:normTracks().join(';'),id:q.get('id')||'',...ai};
+      tracks:normTracks().join(';'),safeBands:$('#safeBands').value.trim(),id:q.get('id')||'',...ai};
     const r=await fetch('/api/design/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();if(!r.ok)throw Error(d.error||('HTTP '+r.status));
-    const part=(n)=>d.parts.find(p=>p.file.includes(n))||{};
-    $('#mmDisc').textContent=part('disc').mm;$('#mmCover').textContent=part('cover').mm;$('#mmStrip').textContent=part('strip').mm;
     const fu=(n)=>'/api/design/file?jid='+encodeURIComponent(d.jid)+'&name='+encodeURIComponent(n);
     $('#imDisc').src=fu('part-disc.png');$('#imCover').src=fu('part-cover.png');$('#imStrip').src=fu('part-strip.png');
     $('#imSheet').src=fu('★版面总览-1比1.png');
-    $('#resCard').hidden=false;$('#resCard').scrollIntoView({behavior:'smooth'});
-    $('#printCard').hidden=false;
     $('#lnkPrint').href=d.printUrl;$('#lnkPdf').href=d.printPdfUrl;$('#lnkZip').href=d.zipUrl;
+    const part=n=>(d.parts||[]).find(p=>p.file.includes(n))||{};
+    LAST={jid:d.jid,parts:d.parts||[],printUrl:d.printUrl,printPdfUrl:d.printPdfUrl,zipUrl:d.zipUrl,
+          album,artist,mm:{disc:part('disc').mm,cover:part('cover').mm,strip:part('strip').mm}};
+    renderDownloads();
+    $('#resCard').hidden=false;$('#printBody').hidden=false;$('#printEmpty').hidden=true;
+    $('#printCard').hidden=false;$('#batchRes').hidden=true;
     $('#buildState').textContent='完成 ✓（任务 '+d.jid+'）';
+    showMod('design');
+    $('#resCard').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){err(e.message);$('#buildState').textContent='';}
   finally{building=false;$('#btnBuild').disabled=false;}
 };
+
+/* ---------------- 导出清单 ---------------- */
+function renderDownloads(){
+  if(!LAST)return;
+  const fu=(n)=>'/api/design/file?jid='+encodeURIComponent(LAST.jid)+'&name='+encodeURIComponent(n);
+  const P=(SPEC&&SPEC.parts)||{};
+  const rows=[
+    {ic:'PNG',t:'① 盘面',s:(LAST.mm.disc||(P.disc?('Ø'+P.disc.w+'mm'):''))+' · 300DPI',u:fu('part-disc.png')},
+    {ic:'PNG',t:'② 封面折件',s:(LAST.mm.cover||'')+' · 300DPI',u:fu('part-cover.png')},
+    {ic:'PNG',t:'③ 封底条',s:(LAST.mm.strip||'')+' · 300DPI',u:fu('part-strip.png')},
+    {ic:'PNG',t:'1:1 版面总览',s:'含裁切/折线/尺寸标注/50mm 校验尺',u:fu('★版面总览-1比1.png')},
+    {ic:'A4',t:'A4 打印拼版',s:'3508 × 2480 px（A4 横向 · 4 套/页）',u:LAST.printUrl},
+    {ic:'PDF',t:'印刷 PDF',s:'带裁切线 / 折线 / 出血 / 安全区',u:LAST.printPdfUrl},
+  ];
+  $('#dlList').innerHTML=rows.map(r=>`
+    <div class="dlItem"><div class="ic">${r.ic}</div>
+      <div class="t"><b>${esc(r.t)}</b><small>${esc(r.s)}</small></div>
+      <a class="plain sm" href="${r.u}" target="_blank" rel="noopener">打开</a></div>`).join('');
+  $('#exportBody').hidden=false;$('#exportEmpty').hidden=true;
+}
+$('#btnSpec').onclick=()=>{
+  const data={generatedAt:new Date().toISOString(),
+    album:LAST&&LAST.album,artist:LAST&&LAST.artist,task:LAST&&LAST.jid,
+    spec:SPEC,parts:LAST&&LAST.parts};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download='迷你CD-生产规格-'+(LAST&&LAST.album||'未命名')+'.json';
+  a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+};
+
+/* ---------------- 批量模式（?batch=1）---------------- */
+const BATCH=q.get('batch')==='1';
+let batchList=[],batchRunning=false;
+function loadBatch(){
+  try{batchList=JSON.parse(sessionStorage.getItem('minuet_design_batch')||'[]')}catch(e){batchList=[]}
+  if(!Array.isArray(batchList))batchList=[];
+  return batchList;
+}
+function renderBatch(){
+  const n=batchList.length;
+  $('#batchCount').textContent=n;
+  $('#batchList').innerHTML=n?batchList.map((a,i)=>`
+    <div class="batchItem"><span class="bi">${String(i+1).padStart(2,'0')}</span>
+      <img class="bth" src="${esc(a.pic||'')}" alt="">
+      <span class="bt"><b>${esc(a.album||'')}</b><small>${esc(a.artist||'')}${a.date?' · '+esc(a.date):''}</small></span>
+      <button class="plain sm bx" data-i="${i}">移除</button></div>`).join('')
+    :'<p class="muted" style="margin:0;font-size:12.5px">没有选中专辑 —— 回专辑列表勾选后重进。</p>';
+  $('#btnBatch').disabled=!n||batchRunning;
+  document.querySelectorAll('#batchList .bx').forEach(b=>{
+    b.onclick=()=>{batchList.splice(parseInt(b.dataset.i,10),1);renderBatch();};
+  });
+}
+$('#btnBatch').onclick=async()=>{
+  if(batchRunning||!batchList.length)return;
+  batchRunning=true;renderBatch();err('');
+  $('#batchState').innerHTML='<span class="spin dk"></span>逐张衍生中…（'+batchList.length+' 张）';
+  showMod('export');
+  try{
+    const body={artist:batchList[0].artist||'',
+      albums:batchList.map(a=>({album:a.album,artist:a.artist,pic:a.pic,company:a.company||'',date:a.date||''})),
+      safeBands:$('#safeBands').value.trim()};
+    const r=await fetch('/api/design/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();if(!r.ok)throw Error(d.error||('HTTP '+r.status));
+    $('#batchSheet').src=d.sheetUrl;
+    $('#lnkBatchSheet').href=d.sheetUrl;$('#lnkBatchZip').href=d.zipUrl;
+    $('#batchGallery').innerHTML=(d.items||[]).map(it=>`
+      <div class="bcell"><div class="bh">${esc(it.no)} ${esc(it.album)}<small>${esc(it.artist)} · ${esc(it.mood)} / ${esc(it.style)}${it.hasAi?' · AI 底图':''}</small></div>
+        <div class="bparts">${it.parts.map(p=>`<a href="${p}" target="_blank" rel="noopener"><img src="${p}" alt=""></a>`).join('')}</div>
+        <div class="bfoot"><a href="${it.printUrl}" target="_blank" rel="noopener">A4 打印拼版</a></div></div>`).join('');
+    $('#batchRes').hidden=false;
+    const bad=(d.failed||[]);
+    $('#batchState').textContent='完成 ✓ '+d.count+' 张'
+      +(bad.length?('；失败 '+bad.length+' 张（'+bad.map(f=>f.album||'?').join('、')+'）'):'')+'  任务 '+d.jid;
+    $('#batchRes').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){err(e.message);$('#batchState').textContent='';}
+  finally{batchRunning=false;renderBatch();}
+};
+if(BATCH){
+  $('#dataCard').hidden=true;$('#aiCard').hidden=true;$('#resCard').hidden=true;
+  $('#batchBlk').hidden=false;
+  loadBatch();renderBatch();
+  $('#railAlbum').textContent=batchList.length?batchList[0].artist||'批量':'批量';
+  $('#railArtist').textContent='共 '+batchList.length+' 张待设计';
+  showMod('export');
+}
+/* ---------------- 作品库 / 历史项目回看（?jid=）----------------
+   从首页「作品库」点进来：读回那次项目的 meta，把已生成的成果直接铺出来。
+   （2026-09-19：首页原来有两个「做过的」入口 —— 作品库和项目库，已经并成一个；
+     这里说的「作品库」就是那唯一的一个。）
+   🔴 只看出件不需要封面；meta 里存了 pic（本次起落盘）的话还能原样重跑。
+   与折音的区别：折音把项目存浏览器 IndexedDB（只存状态、存不住文件），
+   我们是服务端落盘 —— 换浏览器/换设备都在，文件本身就是交付物。 */
+const JID = (q.get('jid') || '').trim();
+let PROJ = [];
+
+/* 左栏「最近设计」 */
+function renderRailProjects(){
+  const box = $('#railProj'); if(!box) return;
+  const c = $('#railProjCount'); if(c) c.textContent = PROJ.length;
+  if(!PROJ.length){
+    box.innerHTML = '<p class="muted" style="margin:0;font-size:12px">'
+      + '还没有做过的项目 —— 生成一次三件套就会留档。</p>';
+    return;
+  }
+  box.innerHTML = PROJ.slice(0, 8).map(p=>`
+    <div class="rproj${p.jid === JID ? ' on' : ''}" data-jid="${esc(p.jid)}"
+         title="${esc(p.album)} · ${esc(p.artist)}（${esc(p.jid)}）">
+      <span class="rt">${esc(p.album || '（未命名）')}</span>
+      <small>${esc(p.artist || '—')}${p.created ? ' · ' + esc(String(p.created).slice(5, 16)) : ''}</small>
+      <button class="ropen" data-jid="${esc(p.jid)}">打开</button>
+    </div>`).join('');
+  box.querySelectorAll('.rproj').forEach(r=>{
+    r.onclick = ev=>{ if(ev.target.closest('.ropen')) return; gotoProject(r.dataset.jid); };
+  });
+  box.querySelectorAll('.rproj .ropen').forEach(b=>{
+    b.onclick = ev=>{ ev.stopPropagation(); gotoProject(b.dataset.jid); };
+  });
+}
+/* 切项目 = 换 URL 重载本页（在 iframe 内重载，外层工作台不受影响） */
+function gotoProject(jid){
+  if(!jid || jid === JID) return;
+  const u = new URLSearchParams();
+  u.set('jid', jid);
+  if(EMBED) u.set('embed', '1');
+  if(FROM_PROJ) u.set('from', 'proj');
+  location.href = location.pathname + '?' + u.toString();
+}
+/* 左栏「最近设计」的数据源 = 作品库（/api/jobs），只挑 cat==='minicd' 那一截。
+   🔴 这里原来请求 /api/design/projects —— 那条 HTTP 路由随「项目库并进作品库」
+      一起撤掉了，再打过去只会 404，左栏就永远停在「读取中…」。
+      只认一个数据源：/api/jobs（商品图 + 迷你CD 合并后的时间线）。 */
+async function loadRailProjects(){
+  try{
+    const d = await jparse('/api/jobs');
+    const all = (d && Array.isArray(d.jobs)) ? d.jobs : [];
+    PROJ = all.filter(x => x && x.cat === 'minicd').map(x => ({
+      jid:     x.id,
+      album:   x.album   || x.title || '',
+      artist:  x.artist  || '',
+      created: x.created || '',
+      thumb:   x.thumb   || '',
+    }));
+  }catch(e){ PROJ = []; }
+  renderRailProjects();
+}
+/* 回看一个历史项目：回填数据确认 + 铺出已生成的成果 */
+async function loadProject(jid){
+  err('');
+  let m;
+  try{ m = await jparse('/api/design/state?jid=' + encodeURIComponent(jid)); }
+  catch(e){ err('读取历史项目失败：' + e.message); return; }
+
+  if(m.album)   $('#album').value = m.album;
+  if(m.artist)  $('#artist').value = m.artist;
+  if(m.company) $('#company').value = m.company;
+  if(Array.isArray(m.tracks) && m.tracks.length) $('#tracks').value = m.tracks.join(';');
+  if(m.safeBands) $('#safeBands').value = m.safeBands;
+  if(m.pic && !PIC){
+    PIC = m.pic;
+    $('#cover').src = PIC; $('#cover').hidden = false; $('#coverBlank').hidden = true;
+    $('#picNote').textContent = '来自项目留档（可直接重跑）';
+  }
+  syncRail();
+
+  const fu = n => '/api/design/file?jid=' + encodeURIComponent(jid)
+                + '&name=' + encodeURIComponent(n);
+  const pr = (m.parts && typeof m.parts === 'object' && !Array.isArray(m.parts)) ? m.parts : {};
+  const f = (k, df) => fu(pr[k] || df);
+  const P = ((SPEC || FALLBACK_SPEC).parts) || {};
+  const mm = {
+    disc:  P.disc  ? ('Ø' + P.disc.w + 'mm') : '',
+    cover: P.cover ? (P.cover.w + '×' + P.cover.h + 'mm') : '',
+    strip: P.strip ? (P.strip.w + '×' + P.strip.h + 'mm') : '',
+  };
+
+  $('#imDisc').src  = f('disc',  'part-disc.png');
+  $('#imCover').src = f('cover', 'part-cover.png');
+  $('#imStrip').src = f('strip', 'part-strip.png');
+  $('#imSheet').src = f('sheet', '★版面总览-1比1.png');
+  $('#lnkPrint').href = f('print', '打印拼版-A4.png');
+  $('#lnkPdf').href   = f('printPdf', '打印拼版-A4.pdf');
+  $('#lnkZip').href   = '/api/design/zip?jid=' + encodeURIComponent(jid);
+
+  LAST = {jid: jid, parts: [], album: m.album || '', artist: m.artist || '',
+          printUrl: $('#lnkPrint').href, printPdfUrl: $('#lnkPdf').href,
+          zipUrl: $('#lnkZip').href, mm: mm};
+  renderDownloads();
+  $('#resCard').hidden = false; $('#printBody').hidden = false;
+  $('#printEmpty').hidden = true; $('#printCard').hidden = false;
+  $('#batchRes').hidden = true;
+  $('#buildState').textContent = '历史项目 ' + jid;
+
+  const note = $('#histNote');
+  if(note){
+    note.hidden = false;
+    note.innerHTML = '正在回看历史项目 <b>' + esc(jid) + '</b>'
+      + '（' + esc(String(m.created || '时间未知')) + '）· 下面三件套与打印件都是'
+      + '<b>当时生成的成果</b>，没有重跑。'
+      + (PIC ? '要改就点「生成三件套」按新参数重出（会另存成一个新任务）。'
+             : '留档里没有原始封面，只能回看与下载，不能重跑。');
+  }
+  showMod('design');
+  /* 有封面就把「视觉 DNA」也一并读出来 —— 那才是完整回到那次设计 */
+  if(PIC) readDesign();
+}
+/* 启动：先读项目列表（左栏 + 供 ?jid= 用），再回看历史项目 */
+(async()=>{
+  await loadRailProjects();
+  if(JID) loadProject(JID);
+})();
 </script></body></html>

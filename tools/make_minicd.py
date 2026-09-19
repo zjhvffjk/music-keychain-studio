@@ -72,8 +72,8 @@ BACK_W = sum(BACK_SEGS)                    # 111.2
 BACK_H = 38.0
 
 PAGES = {"a4l": (297.0, 210.0), "a4p": (210.0, 297.0)}
-MARGIN = 10.0
-GAP = 6.0
+MARGIN = SP.SHEET_MARGIN   # 页边距（与 spec_minicd 同一真源，折音融合层）
+GAP = SP.SHEET_GAP         # 件间距
 
 LINE = (150, 150, 150)     # 裁切线
 LINE_SOFT = (190, 190, 190)
